@@ -67,6 +67,11 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Dynamic Custom Field addition
+  const [isAddingField, setIsAddingField] = useState<boolean>(false);
+  const [newFieldName, setNewFieldName] = useState<string>('');
+  const [newFieldValue, setNewFieldValue] = useState<string>('');
+
   // Clean up object URL when unmounting
   useEffect(() => {
     return () => {
@@ -170,14 +175,22 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
     setRawJsonError(null);
   };
 
+  // Core standard keys handled specifically
+  const coreKeys = useMemo(
+    () => new Set(['name', 'description', 'image', 'attributes', 'traits', 'schema', 'nftType']),
+    []
+  );
+
+  // Dynamic extra keys present in metadata JSON
+  const extraKeys = useMemo(() => {
+    if (!metadata) return [];
+    return Object.keys(metadata).filter((k) => !coreKeys.has(k));
+  }, [metadata, coreKeys]);
+
   // Audits
   const nameAudit = useMemo(() => auditField(metadata?.name || '', 'Name'), [metadata?.name]);
   const descAudit = useMemo(() => auditField(metadata?.description || '', 'Description'), [metadata?.description]);
   const imageAudit = useMemo(() => auditField(metadata?.image || '', 'Image'), [metadata?.image]);
-  const collectionAudit = useMemo(
-    () => auditField(metadata?.collection?.name || '', 'Collection'),
-    [metadata?.collection?.name]
-  );
 
   const globalAudit = useMemo(() => {
     if (!metadata) {
@@ -843,113 +856,354 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                   />
                 </div>
 
-                {/* Field: Description */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Description
-                    </label>
-                    <ByteBadge
-                      audit={descAudit}
-                      onSanitize={() =>
-                        updateFormMetadata({ ...metadata, description: sanitizeText(metadata.description || '') })
-                      }
+                {/* Field: Description (Only rendered if present in metadata JSON) */}
+                {'description' in metadata && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Description
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <ByteBadge
+                          audit={descAudit}
+                          onSanitize={() =>
+                            updateFormMetadata({ ...metadata, description: sanitizeText(metadata.description || '') })
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = { ...metadata };
+                            delete next.description;
+                            updateFormMetadata(next as NFTMetadata);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                          }}
+                          title="Remove Description field from JSON"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      rows={5}
+                      value={metadata.description || ''}
+                      onChange={(e) => updateFormMetadata({ ...metadata, description: e.target.value })}
+                      placeholder="Provide token story, provenance, physical delivery terms..."
+                      style={{ lineHeight: 1.6 }}
                     />
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      💡 Emojis (e.g. ✍️, 🦶, 🔐) occupy 4 to 8 bytes each due to Unicode variation selectors. Watch the byte total!
+                    </div>
                   </div>
-                  <textarea
-                    rows={6}
-                    value={metadata.description || ''}
-                    onChange={(e) => updateFormMetadata({ ...metadata, description: e.target.value })}
-                    placeholder="Provide token story, provenance, physical delivery terms..."
-                    style={{ lineHeight: 1.6 }}
-                  />
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    💡 Emojis (e.g. ✍️, 🦶, 🔐) occupy 4 to 8 bytes each due to Unicode variation selectors. Watch the byte total!
-                  </div>
-                </div>
+                )}
 
                 {/* Field: Image URI */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Image URI / IPFS CID
-                    </label>
-                    <ByteBadge audit={imageAudit} compact />
+                {('image' in metadata || metadata.image !== undefined) && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Image URI / IPFS CID
+                      </label>
+                      <ByteBadge audit={imageAudit} compact />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        value={metadata.image || ''}
+                        onChange={(e) => {
+                          updateFormMetadata({ ...metadata, image: e.target.value });
+                          if (pendingImagePreviewUrl) {
+                            URL.revokeObjectURL(pendingImagePreviewUrl);
+                            setPendingImagePreviewUrl(null);
+                          }
+                          setPendingImageFile(null);
+                        }}
+                        placeholder="ipfs://bafy... or https://..."
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Choose image file from your device"
+                        style={{
+                          padding: '0 14px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--accent-cyan)',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          whiteSpace: 'nowrap',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Upload size={13} /> Browse
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="text"
-                      value={metadata.image || ''}
-                      onChange={(e) => {
-                        updateFormMetadata({ ...metadata, image: e.target.value });
-                        if (pendingImagePreviewUrl) {
-                          URL.revokeObjectURL(pendingImagePreviewUrl);
-                          setPendingImagePreviewUrl(null);
-                        }
-                        setPendingImageFile(null);
-                      }}
-                      placeholder="ipfs://bafy... or https://..."
-                      style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', flex: 1 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Choose image file from your device"
-                      style={{
-                        padding: '0 14px',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border-subtle)',
-                        color: 'var(--accent-cyan)',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        whiteSpace: 'nowrap',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Upload size={13} /> Browse
-                    </button>
-                  </div>
-                </div>
+                )}
 
-                {/* Field: Collection Info */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        Collection Name
-                      </label>
-                      <ByteBadge audit={collectionAudit} compact />
+                {/* Dynamic Extra Fields (Only rendered if present in JSON or added by user) */}
+                {extraKeys.map((key) => {
+                  const val = metadata[key];
+
+                  // Sub-object: collection
+                  if (key === 'collection' && typeof val === 'object' && val !== null) {
+                    return (
+                      <div key={key}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            Collection Name
+                          </label>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <ByteBadge audit={auditField(val.name || '', 'Collection')} compact />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = { ...metadata };
+                                delete next.collection;
+                                updateFormMetadata(next as NFTMetadata);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                              }}
+                              title="Remove Collection field from JSON"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          value={val.name || ''}
+                          onChange={(e) =>
+                            updateFormMetadata({
+                              ...metadata,
+                              collection: { ...val, name: e.target.value },
+                            })
+                          }
+                          placeholder="e.g. Footwork by MuseForge"
+                        />
+                      </div>
+                    );
+                  }
+
+                  // Primitive string, number, boolean
+                  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+                    const strVal = String(val ?? '');
+                    return (
+                      <div key={key}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                            {key.replace(/_/g, ' ')}
+                          </label>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {typeof val === 'string' && (
+                              <ByteBadge
+                                audit={auditField(strVal, key)}
+                                compact
+                                onSanitize={() =>
+                                  updateFormMetadata({ ...metadata, [key]: sanitizeText(strVal) })
+                                }
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = { ...metadata };
+                                delete next[key];
+                                updateFormMetadata(next as NFTMetadata);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                              }}
+                              title={`Remove ${key} field from JSON`}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          value={strVal}
+                          onChange={(e) => updateFormMetadata({ ...metadata, [key]: e.target.value })}
+                          placeholder={`Enter ${key}...`}
+                        />
+                      </div>
+                    );
+                  }
+
+                  // Generic Object or Array
+                  return (
+                    <div key={key}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                          {key.replace(/_/g, ' ')} (JSON)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = { ...metadata };
+                            delete next[key];
+                            updateFormMetadata(next as NFTMetadata);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                          }}
+                          title={`Remove ${key} field from JSON`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      <textarea
+                        rows={3}
+                        value={JSON.stringify(val, null, 2)}
+                        onChange={(e) => {
+                          try {
+                            const parsed = JSON.parse(e.target.value);
+                            updateFormMetadata({ ...metadata, [key]: parsed });
+                          } catch {
+                            // keep typing
+                          }
+                        }}
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}
+                      />
                     </div>
-                    <input
-                      type="text"
-                      value={metadata.collection?.name || ''}
-                      onChange={(e) =>
-                        updateFormMetadata({
-                          ...metadata,
-                          collection: { ...metadata.collection, name: e.target.value },
-                        })
-                      }
-                      placeholder="e.g. Footwork by MuseForge"
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        License
-                      </label>
+                  );
+                })}
+
+                {/* Add Custom Field Inline Widget */}
+                {!isAddingField ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingField(true)}
+                    style={{
+                      alignSelf: 'flex-start',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px dashed var(--border-subtle)',
+                      color: 'var(--accent-cyan)',
+                      fontSize: '0.78rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                  >
+                    <Plus size={13} /> Add Field
+                  </button>
+                ) : (
+                  <div
+                    style={{
+                      padding: '12px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(15, 23, 42, 0.7)',
+                      border: '1px solid rgba(0, 230, 203, 0.3)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Add Field to JSON
                     </div>
-                    <input
-                      type="text"
-                      value={metadata.license || ''}
-                      onChange={(e) => updateFormMetadata({ ...metadata, license: e.target.value })}
-                      placeholder="e.g. CC BY-NC-SA"
-                    />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                          Field Key Name
+                        </label>
+                        <input
+                          type="text"
+                          value={newFieldName}
+                          onChange={(e) => setNewFieldName(e.target.value)}
+                          placeholder="e.g. license, artist, external_url"
+                          style={{ fontSize: '0.8rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                          Initial Value
+                        </label>
+                        <input
+                          type="text"
+                          value={newFieldValue}
+                          onChange={(e) => setNewFieldValue(e.target.value)}
+                          placeholder="e.g. CC0, MuseForge"
+                          style={{ fontSize: '0.8rem' }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '2px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingField(false);
+                          setNewFieldName('');
+                          setNewFieldValue('');
+                        }}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'transparent',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!newFieldName.trim()}
+                        onClick={() => {
+                          if (!newFieldName.trim()) return;
+                          updateFormMetadata({
+                            ...metadata,
+                            [newFieldName.trim()]: newFieldValue,
+                          });
+                          setIsAddingField(false);
+                          setNewFieldName('');
+                          setNewFieldValue('');
+                        }}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: !newFieldName.trim() ? 'rgba(255,255,255,0.1)' : 'var(--accent-cyan)',
+                          color: !newFieldName.trim() ? 'var(--text-muted)' : '#060913',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: !newFieldName.trim() ? 'default' : 'pointer',
+                        }}
+                      >
+                        Add Field
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Attributes Section */}
                 <div>
