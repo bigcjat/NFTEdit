@@ -201,7 +201,7 @@ export default {
       }
     }
 
-    // 5. Upload Media File (Binary / Image, strictly enforced <= 15 MB and image MIME)
+    // 5. Upload Media File (Binary / Artwork, strictly enforced <= 100 MB and media MIME)
     if (request.method === 'POST' && (url.pathname === '/upload-file' || url.pathname === '/api/upload-file')) {
       try {
         const contentType = request.headers.get('content-type') || '';
@@ -221,18 +221,25 @@ export default {
           );
         }
 
-        // Security check: Only allow images (PNG, JPG, WEBP, GIF, SVG)
-        if (!file.type.startsWith('image/')) {
+        // Security check: Allow all digital art formats (high-res images, video, audio, 3D GLB/GLTF)
+        const isAllowedMedia =
+          file.type.startsWith('image/') ||
+          file.type.startsWith('video/') ||
+          file.type.startsWith('audio/') ||
+          file.type.startsWith('model/') ||
+          /\.(png|jpe?g|webp|gif|svg|tiff?|avif|mp4|webm|mov|wav|mp3|flac|ogg|glb|gltf)$/i.test(file.name);
+
+        if (!isAllowedMedia) {
           return new Response(
-            JSON.stringify({ error: 'Forbidden: Only image files are allowed.' }),
+            JSON.stringify({ error: 'Forbidden: Only artwork media files (images, video, audio, 3D models) are allowed.' }),
             { status: 415, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Max file size: 15 MB
-        if (file.size > 15 * 1024 * 1024) {
+        // Max file size: 100 MB (Cloudflare Workers platform maximum body size)
+        if (file.size > 100 * 1024 * 1024) {
           return new Response(
-            JSON.stringify({ error: 'Payload Too Large: Image exceeds 15 MB size limit.' }),
+            JSON.stringify({ error: 'Payload Too Large: Artwork media exceeds 100 MB size limit (Cloudflare Workers maximum).' }),
             { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
