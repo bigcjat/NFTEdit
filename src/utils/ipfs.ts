@@ -2,14 +2,7 @@ import type { NFTMetadata } from '../types';
 
 export const DEFAULT_GATEWAYS = [
   'https://ipfs.filebase.io/ipfs/',
-  'https://ipfs.orbitor.dev/ipfs/',
-  'https://eu.orbitor.dev/ipfs/',
-  'https://apac.orbitor.dev/ipfs/',
-  'https://latam.orbitor.dev/ipfs/',
-  'https://gateway.pinata.cloud/ipfs/',
-  'https://ipfs.io/ipfs/',
-  'https://dweb.link/ipfs/',
-  'https://nftstorage.link/ipfs/',
+  'https://quicknode.quicknode-ipfs.com/ipfs/',
   'http://127.0.0.1:8080/ipfs/',
 ];
 
@@ -17,32 +10,54 @@ export const DEFAULT_GATEWAYS = [
 const metadataCache = new Map<string, NFTMetadata>();
 
 /**
+ * Robustly extracts the CID and optional file subpath from any IPFS URL or URI format.
+ */
+export function extractIpfsPath(uri: string): string {
+  if (!uri) return '';
+
+  // 1. Subdomain gateway format: https://<cid>.ipfs.<domain>/<optional-path>
+  const subdomainMatch = uri.match(/https?:\/\/([a-z0-9]+)\.ipfs\.[^/]+(?:\/(.*))?/i);
+  if (subdomainMatch) {
+    const cid = subdomainMatch[1];
+    const subpath = subdomainMatch[2] || '';
+    return subpath ? `${cid}/${subpath}` : cid;
+  }
+
+  // 2. Standard path gateway format: .../ipfs/<cid-and-path>
+  if (uri.includes('/ipfs/')) {
+    return uri.split('/ipfs/')[1];
+  }
+
+  // 3. ipfs:// URI format: ipfs://<cid-and-path>
+  if (uri.startsWith('ipfs://')) {
+    return uri.replace(/^ipfs:\/\//, '');
+  }
+
+  // 4. Raw CID format
+  if (uri.startsWith('Qm') || uri.startsWith('bafy') || uri.startsWith('bafk')) {
+    return uri;
+  }
+
+  return '';
+}
+
+/**
  * Returns an ordered array of candidate gateway HTTP URLs for an IPFS URI.
  */
 export function getFallbackGatewayUrls(uri: string, customGateway?: string): string[] {
   if (!uri) return [];
 
-  // Clean custom gateway if present
   const gws = customGateway
     ? [customGateway.endsWith('/') ? customGateway : `${customGateway}/`, ...DEFAULT_GATEWAYS]
     : DEFAULT_GATEWAYS;
 
-  // If already an HTTP/HTTPS URL
-  if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    if (uri.includes('/ipfs/')) {
-      const path = uri.split('/ipfs/')[1];
-      return [uri, ...gws.map((gw) => `${gw}${path}`)];
-    }
-    return [uri];
+  const ipfsPath = extractIpfsPath(uri);
+  if (ipfsPath) {
+    return gws.map((gw) => `${gw}${ipfsPath}`);
   }
 
-  // Extract CID or path from ipfs:// or raw CID
-  let path = uri.replace(/^ipfs:\/\//, '');
-  if (path.includes('/ipfs/')) {
-    path = path.split('/ipfs/')[1];
-  }
-
-  return gws.map((gw) => `${gw}${path}`);
+  // Non-IPFS standard HTTP URL (e.g. Arweave or HTTPS)
+  return [uri];
 }
 
 /**
@@ -55,45 +70,78 @@ export function resolveIPFSUrl(uri: string, gateway?: string): string {
 }
 
 /**
- * Fetches JSON metadata from IPFS with cascading fallback gateways, caching, and timeouts.
+ * Fetches JSON metadata from IPFS with cascading fallback gateways, caching, timeouts,
+ * and an optional onXRP/Bidds indexer fallback.
  */
-export async function fetchIPFSMetadata(uri: string, customGateway?: string): Promise<NFTMetadata> {
-  if (!uri) {
-    throw new Error('No URI provided');
+export async function fetchIPFSMetadata(
+  uri: string,
+  customGateway?: string,
+  nftId?: string
+): Promise<NFTMetadata> {
+  if (!uri && !nftId) {
+    throw new Error('No URI or NFTokenID provided');
   }
 
   // Check in-memory cache first
-  if (metadataCache.has(uri)) {
-    return metadataCache.get(uri)!;
+  const cacheKey = uri || nftId || '';
+  if (cacheKey && metadataCache.has(cacheKey)) {
+    return metadataCache.get(cacheKey)!;
   }
 
-  const urls = getFallbackGatewayUrls(uri, customGateway);
   let lastError: any = null;
 
-  for (const url of urls) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4500);
+  // 1. Direct IPFS resolution via verified live gateways
+  if (uri) {
+    const urls = getFallbackGatewayUrls(uri, customGateway);
+    for (const url of urls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-      const resp = await fetch(url, {
+        const resp = await fetch(url, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+          const text = await resp.text();
+          const parsed = JSON.parse(text);
+          metadataCache.set(cacheKey, parsed);
+          return parsed;
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
+  }
+
+  // 2. Secondary fallback: onXRP / Bidds metadata indexer API (cached snapshot)
+  if (nftId) {
+    try {
+      const biddsUrl = `https://api.bidds.com/api/metadata/${nftId}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const resp = await fetch(biddsUrl, {
         signal: controller.signal,
         headers: { Accept: 'application/json' },
       });
       clearTimeout(timeoutId);
 
       if (resp.ok) {
-        const text = await resp.text();
-        const parsed = JSON.parse(text);
-        metadataCache.set(uri, parsed);
-        return parsed;
+        const parsed = await resp.json();
+        if (parsed && typeof parsed === 'object' && (parsed.name || parsed.image || parsed.attributes)) {
+          metadataCache.set(cacheKey, parsed);
+          return parsed;
+        }
       }
-    } catch (err) {
-      lastError = err;
-      // Try next gateway in fallback list
+    } catch (biddsErr) {
+      console.warn('Bidds fallback metadata fetch failed:', biddsErr);
     }
   }
 
-  throw lastError || new Error(`Failed to load IPFS metadata from all fallback gateways for ${uri}`);
+  throw lastError || new Error(`Failed to load IPFS metadata from all fallback gateways for ${uri || nftId}`);
 }
 
 

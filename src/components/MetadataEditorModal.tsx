@@ -66,7 +66,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
     setIsFetchingIpfs(true);
     setFetchIpfsError(null);
     try {
-      const fetched = await fetchIPFSMetadata(nft.decodedUri, customGateway);
+      const fetched = await fetchIPFSMetadata(nft.decodedUri, customGateway, nft.nft_id);
       setMetadata(fetched);
       setRawJsonText(JSON.stringify(fetched, null, 2));
       setRawJsonError(null);

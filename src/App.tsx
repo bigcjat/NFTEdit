@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import './App.css';
 import type { NFToken, NFTMetadata, PinataSettings, XRPLNetwork } from './types';
 import { fetchAccountNFTs } from './utils/xrpl';
-import { fetchIPFSMetadata } from './utils/ipfs';
 import { Navbar } from './components/Navbar';
 import { TaxonSelector } from './components/TaxonSelector';
 import { NFTCard } from './components/NFTCard';
@@ -118,49 +117,14 @@ export function App() {
     try {
       const fetched = await fetchAccountNFTs(account, network);
       setNfts(fetched);
-
-      // Controlled queue for background metadata loading (concurrency: 2)
-      let activeIndex = 0;
-      const tokensToLoad = fetched.filter((t): t is NFToken & { decodedUri: string } => !!t.decodedUri);
-
-      const loadNext = async () => {
-        while (activeIndex < tokensToLoad.length) {
-          const currentToken = tokensToLoad[activeIndex++];
-          if (!currentToken) break;
-          try {
-            const meta = await fetchIPFSMetadata(currentToken.decodedUri, pinataSettings.gateway);
-
-            setNfts((prev) =>
-              prev.map((item) =>
-                item.nft_id === currentToken.nft_id
-                  ? { ...item, metadata: meta, metadataLoading: false }
-                  : item
-              )
-            );
-          } catch {
-            setNfts((prev) =>
-              prev.map((item) =>
-                item.nft_id === currentToken.nft_id
-                  ? { ...item, metadataLoading: false, metadataError: 'Unreachable' }
-                  : item
-              )
-            );
-          }
-          // Small pacing pause between requests to prevent gateway throttling
-          await new Promise((r) => setTimeout(r, 100));
-        }
-      };
-
-      // Launch 2 concurrent workers
-      loadNext();
-      loadNext();
     } catch (err: any) {
       console.error('Failed to load NFTs:', err);
       setNftLoadError(err.message || 'Could not fetch your minted NFTs.');
     } finally {
       setIsLoadingNFTs(false);
     }
-  }, [account, network, pinataSettings.gateway]);
+  }, [account, network]);
+
 
 
   useEffect(() => {
