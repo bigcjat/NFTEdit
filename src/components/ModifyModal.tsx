@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import type { NFToken, NFTMetadata, PinataSettings, XamanSettings, XRPLNetwork } from '../types';
 import { utf8ToHex, buildNFTokenModifyTx } from '../utils/xrpl';
-import { uploadJSONToPinata, downloadJsonFile } from '../utils/ipfs';
+import { uploadJSONToPinata, uploadToLocalIPFSNode, downloadJsonFile } from '../utils/ipfs';
 import { generateClientQRCode, createXamanPayload, subscribeToXamanPayload } from '../utils/xaman';
 import { 
   X, 
   Upload, 
   Check, 
-  ExternalLink, 
   Copy, 
   Smartphone, 
   Key, 
@@ -15,7 +14,8 @@ import {
   AlertCircle, 
   ArrowRight,
   HardDrive,
-  RefreshCw
+  RefreshCw,
+  Server
 } from 'lucide-react';
 import { Client, Wallet } from 'xrpl';
 
@@ -68,7 +68,26 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [copiedTx, setCopiedTx] = useState(false);
 
-  // Step 1: Upload to IPFS
+  const [localIpfsUrl, setLocalIpfsUrl] = useState('http://127.0.0.1:5001');
+
+  // Upload directly to local IPFS Node (IPFS Desktop / Brave / Kubo) - 100% Free, no keys
+  const handleUploadToLocalNode = async () => {
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      const res = await uploadToLocalIPFSNode(updatedMetadata, localIpfsUrl);
+      setIpfsUri(res.uri);
+      processNewUri(res.uri);
+    } catch (err: any) {
+      setUploadError(
+        err.message || 'Could not connect to local IPFS node. Make sure IPFS Desktop or Kubo daemon is running at ' + localIpfsUrl
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Step 1: Upload to IPFS via Pinata Free Tier
   const handleUploadToPinata = async () => {
     if (!pinataSettings.jwt) {
       setUploadError('Pinata JWT is missing. Please enter it in Settings or enter a CID manually below.');
@@ -289,7 +308,63 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
           {step === 'ipfs' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                To modify this NFT's URI on the XRPL, the updated metadata JSON must be pinned to IPFS to obtain a permanent Content Identifier (CID).
+                To modify this NFT's URI on the XRPL, the updated metadata JSON must be pinned to IPFS to obtain a Content Identifier (CID).
+              </div>
+
+              {/* Free Local Node Option (Kubo / IPFS Desktop / Brave) */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Server size={16} /> Free Local IPFS Node (Kubo / IPFS Desktop / Brave)
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', background: 'var(--accent-emerald-dim)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 600 }}>
+                    100% Free
+                  </span>
+                </div>
+
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Uploads directly to your local IPFS daemon with zero accounts, zero fees, and zero third-party tracking.
+                </p>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={localIpfsUrl}
+                    onChange={(e) => setLocalIpfsUrl(e.target.value)}
+                    placeholder="http://127.0.0.1:5001"
+                    style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUploadToLocalNode}
+                    disabled={isUploading}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--accent-emerald)',
+                      color: '#060913',
+                      fontWeight: 600,
+                      fontSize: '0.82rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Upload size={14} className={isUploading ? 'animate-spin' : ''} />
+                    Upload Local
+                  </button>
+                </div>
               </div>
 
               {/* Pinata Option */}
@@ -757,36 +832,22 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
                     {txHash}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                    <a
-                      href={`https://xrpscan.com/tx/${txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(txHash)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '4px',
                         fontSize: '0.75rem',
-                        color: 'var(--accent-blue)',
-                        textDecoration: 'none',
+                        color: 'var(--accent-cyan)',
+                        padding: '4px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(0, 230, 203, 0.1)',
                       }}
                     >
-                      View on XRPScan <ExternalLink size={12} />
-                    </a>
-                    <a
-                      href={`https://bithomp.com/explorer/${txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.75rem',
-                        color: 'var(--accent-blue)',
-                        textDecoration: 'none',
-                      }}
-                    >
-                      View on Bithomp <ExternalLink size={12} />
-                    </a>
+                      <Copy size={12} /> Copy Transaction Hash
+                    </button>
                   </div>
                 </div>
               )}

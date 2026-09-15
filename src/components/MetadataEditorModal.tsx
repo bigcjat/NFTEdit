@@ -15,7 +15,6 @@ import {
   CheckCircle2, 
   Code, 
   Eye, 
-  ExternalLink,
   ArrowRight,
   Info
 } from 'lucide-react';
@@ -443,22 +442,6 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                 </span>
               </div>
 
-              <a
-                href={`https://xrpscan.com/nft/${nft.nft_id}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: 'var(--accent-blue)',
-                  textDecoration: 'none',
-                  marginTop: '4px',
-                  fontSize: '0.72rem',
-                }}
-              >
-                View on XRPScan <ExternalLink size={12} />
-              </a>
             </div>
 
             {/* Mutable Flag Guidance */}

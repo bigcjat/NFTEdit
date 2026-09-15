@@ -2,13 +2,11 @@ import type { NFToken, XRPLNetwork } from '../types';
 
 export const RPC_ENDPOINTS: Record<XRPLNetwork, string[]> = {
   mainnet: [
-    'https://s2.ripple.com:51234',
-    'https://xrplcluster.com',
     'https://s1.ripple.com:51234',
+    'https://s2.ripple.com:51234',
   ],
   testnet: [
     'https://s.altnet.rippletest.net:51234',
-    'https://testnet.xrpl-labs.com',
   ],
 };
 
@@ -123,9 +121,45 @@ async function callXRPLRPC(method: string, params: any[], network: XRPLNetwork =
 }
 
 /**
- * Fetches all NFTs for an account, with pagination.
+ * Fetches all NFTs minted by an account.
+ * First queries the XRPL Data API for all tokens minted by this issuer (including tokens now held by collectors).
+ * Falls back to querying Ripple's Clio node (account_nfts filtered to Issuer === account).
  */
 export async function fetchAccountNFTs(account: string, network: XRPLNetwork = 'mainnet'): Promise<NFToken[]> {
+  // 1. On mainnet, attempt to query all tokens minted by this issuer
+  if (network === 'mainnet') {
+    try {
+      const resp = await fetch(`https://api.xrpldata.com/api/v1/xls20-nfts/issuer/${account}`);
+      if (resp.ok) {
+        const json = await resp.json();
+        const nfts = json?.data?.nfts || [];
+        if (nfts.length > 0) {
+          return nfts.map((item: any) => {
+            const parsed = parseNFTokenID(item.NFTokenID);
+            const decodedUri = item.URI ? hexToUtf8(item.URI) : '';
+            return {
+              nft_id: item.NFTokenID,
+              issuer: item.Issuer,
+              owner: item.Owner,
+              nft_taxon: item.Taxon !== undefined ? item.Taxon : item.NFTokenTaxon,
+              nft_serial: item.Sequence !== undefined ? item.Sequence : item.nft_serial,
+              transfer_fee: item.TransferFee || 0,
+              flags: item.Flags || 0,
+              uri: item.URI,
+              decodedUri,
+              isMutable: parsed ? parsed.isMutable : ((item.Flags || 0) & 0x0010) !== 0,
+              isTransferable: parsed ? parsed.isTransferable : ((item.Flags || 0) & 0x0008) !== 0,
+              isBurnable: parsed ? parsed.isBurnable : ((item.Flags || 0) & 0x0001) !== 0,
+            };
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('xrpldata issuer query failed, falling back to Clio node:', err);
+    }
+  }
+
+  // 2. Direct Clio node query (s1/s2.ripple.com) with strict Issuer filter
   const allNfts: NFToken[] = [];
   let marker: any = undefined;
 
@@ -133,7 +167,7 @@ export async function fetchAccountNFTs(account: string, network: XRPLNetwork = '
     const params: any = {
       account,
       ledger_index: 'validated',
-      limit: 100,
+      limit: 400,
     };
     if (marker) {
       params.marker = marker;
@@ -143,12 +177,18 @@ export async function fetchAccountNFTs(account: string, network: XRPLNetwork = '
     const nfts = result.account_nfts || [];
 
     for (const item of nfts) {
+      // STRICT FILTER: Only include NFTs that were minted by this account!
+      if (item.Issuer !== account) {
+        continue;
+      }
+
       const parsed = parseNFTokenID(item.NFTokenID);
       const decodedUri = item.URI ? hexToUtf8(item.URI) : '';
       
       allNfts.push({
         nft_id: item.NFTokenID,
         issuer: item.Issuer,
+        owner: account,
         nft_taxon: item.NFTokenTaxon,
         nft_serial: item.nft_serial,
         transfer_fee: item.TransferFee || 0,
@@ -171,19 +211,7 @@ export async function fetchAccountNFTs(account: string, network: XRPLNetwork = '
  * Queries info for a single NFT using Clio nft_info.
  */
 export async function fetchNFTInfo(nftId: string, network: XRPLNetwork = 'mainnet') {
-  try {
-    const result = await callXRPLRPC('nft_info', [{ nft_id: nftId }], network);
-    return result;
-  } catch (err) {
-    // Fallback to XRPScan API on mainnet if clio returns unknownCmd
-    if (network === 'mainnet') {
-      const resp = await fetch(`https://api.xrpscan.com/api/v1/nft/${nftId}`);
-      if (resp.ok) {
-        return await resp.json();
-      }
-    }
-    throw err;
-  }
+  return await callXRPLRPC('nft_info', [{ nft_id: nftId }], network);
 }
 
 /**
