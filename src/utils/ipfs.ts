@@ -3,7 +3,6 @@ import type { NFTMetadata } from '../types';
 export const DEFAULT_GATEWAYS = [
   'https://ipfs.filebase.io/ipfs/',
   'https://quicknode.quicknode-ipfs.com/ipfs/',
-  'http://127.0.0.1:8080/ipfs/',
 ];
 
 // In-memory cache to prevent duplicate fetches across component re-renders
@@ -219,38 +218,6 @@ export async function uploadJSONToPinata(
 }
 
 /**
- * Uploads JSON metadata directly to a local or self-hosted IPFS Kubo node (e.g. IPFS Desktop, Brave IPFS, or local daemon).
- * 100% Free, local, open-source, and private.
- */
-export async function uploadToLocalIPFSNode(
-  metadata: NFTMetadata,
-  endpoint = 'http://127.0.0.1:5001'
-): Promise<{ ipfsHash: string; uri: string }> {
-  const cleanEndpoint = endpoint.replace(/\/+$/, '');
-  const jsonString = JSON.stringify(metadata, null, 2);
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  const formData = new FormData();
-  formData.append('file', blob, 'metadata.json');
-
-  const resp = await fetch(`${cleanEndpoint}/api/v0/add?pin=true`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Local IPFS upload failed (${resp.status}): ${errText}`);
-  }
-
-  const data = await resp.json();
-  const ipfsHash = data.Hash;
-  return {
-    ipfsHash,
-    uri: `ipfs://${ipfsHash}`,
-  };
-}
-
-/**
  * Uploads a binary media file (image/video) to IPFS via Pinata.
  */
 export async function uploadFileToPinata(
@@ -293,36 +260,6 @@ export async function uploadFileToPinata(
 
   const data = await resp.json();
   const ipfsHash = data.IpfsHash;
-  return {
-    ipfsHash,
-    uri: `ipfs://${ipfsHash}`,
-  };
-}
-
-/**
- * Uploads a binary media file directly to a local or self-hosted IPFS Kubo node.
- * 100% Free, local, open-source, and private.
- */
-export async function uploadFileToLocalIPFSNode(
-  file: File,
-  endpoint = 'http://127.0.0.1:5001'
-): Promise<{ ipfsHash: string; uri: string }> {
-  const cleanEndpoint = endpoint.replace(/\/+$/, '');
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const resp = await fetch(`${cleanEndpoint}/api/v0/add?pin=true`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Local IPFS file upload failed (${resp.status}): ${errText}`);
-  }
-
-  const data = await resp.json();
-  const ipfsHash = data.Hash;
   return {
     ipfsHash,
     uri: `ipfs://${ipfsHash}`,

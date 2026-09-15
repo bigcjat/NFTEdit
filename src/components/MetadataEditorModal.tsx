@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { NFToken, NFTMetadata, TraitAttribute, PinataSettings } from '../types';
 import { auditField, auditMetadata, sanitizeText } from '../utils/audit';
 import { ByteBadge } from './ByteBadge';
-import { downloadJsonFile, fetchIPFSMetadata, uploadFileToPinata, uploadFileToLocalIPFSNode } from '../utils/ipfs';
+import { downloadJsonFile, fetchIPFSMetadata, uploadFileToPinata } from '../utils/ipfs';
 import { IPFSImage } from './IPFSImage';
 import { 
   X, 
@@ -176,14 +176,12 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
     setIsUploadingImage(true);
     setImageUploadError(null);
     try {
-      let resultUri = '';
-      if (pinataSettings?.jwt) {
-        const res = await uploadFileToPinata(targetFile, pinataSettings.jwt);
-        resultUri = res.uri;
-      } else {
-        const res = await uploadFileToLocalIPFSNode(targetFile);
-        resultUri = res.uri;
+      if (!pinataSettings?.jwt) {
+        throw new Error('Pinata JWT is required to upload images to IPFS. Please set your JWT in Settings, or enter an IPFS CID directly.');
       }
+
+      const res = await uploadFileToPinata(targetFile, pinataSettings.jwt);
+      const resultUri = res.uri;
 
       if (metadata) {
         const updated = { ...metadata, image: resultUri };
@@ -193,7 +191,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
       setImageUploadSuccess(resultUri);
       return resultUri;
     } catch (err: any) {
-      const msg = err.message || 'Image upload to IPFS failed. Ensure local IPFS Desktop / Kubo is running or Pinata JWT is set.';
+      const msg = err.message || 'Image upload to Pinata failed.';
       setImageUploadError(msg);
       return null;
     } finally {
@@ -788,8 +786,8 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                         )}
                       </button>
 
-                      <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)' }}>
-                        Target: {pinataSettings?.jwt ? 'Pinata Cloud' : 'Local Kubo Node (127.0.0.1:5001)'}
+                      <span style={{ fontSize: '0.67rem', color: pinataSettings?.jwt ? 'var(--text-muted)' : 'var(--accent-amber)' }}>
+                        {pinataSettings?.jwt ? 'Pinata Cloud IPFS' : 'Pinata JWT not set in Settings'}
                       </span>
                     </div>
                   )}
