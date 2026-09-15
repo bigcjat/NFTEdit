@@ -23,6 +23,82 @@ import {
 } from 'lucide-react';
 
 
+export interface StandardFieldSuggestion {
+  key: string;
+  label: string;
+  description: string;
+  defaultValue: any;
+}
+
+export const STANDARD_METADATA_FIELDS: StandardFieldSuggestion[] = [
+  {
+    key: 'description',
+    label: 'Description',
+    description: 'Detailed token story or provenance terms',
+    defaultValue: '',
+  },
+  {
+    key: 'collection',
+    label: 'Collection',
+    description: 'Collection grouping details',
+    defaultValue: { name: '' },
+  },
+  {
+    key: 'license',
+    label: 'License',
+    description: 'Rights & Terms (e.g. CC0, CC BY-NC-SA)',
+    defaultValue: 'CC0',
+  },
+  {
+    key: 'external_url',
+    label: 'External URL',
+    description: 'Website, social, or project documentation link',
+    defaultValue: 'https://',
+  },
+  {
+    key: 'animation_url',
+    label: 'Animation URL',
+    description: 'Animated media or 3D viewer asset (mp4, webm, glb)',
+    defaultValue: '',
+  },
+  {
+    key: 'artist',
+    label: 'Artist / Creator',
+    description: 'Creator pseudonym, handle, or wallet address',
+    defaultValue: '',
+  },
+  {
+    key: 'video',
+    label: 'Video',
+    description: 'Direct video file link (IPFS/Arweave)',
+    defaultValue: '',
+  },
+  {
+    key: 'audio',
+    label: 'Audio',
+    description: 'Direct audio stream link (mp3/wav)',
+    defaultValue: '',
+  },
+  {
+    key: '3d_model',
+    label: '3D Model',
+    description: 'GLB / GLTF 3D model asset',
+    defaultValue: '',
+  },
+  {
+    key: 'background_color',
+    label: 'Background Color',
+    description: 'Six-character hex color without # (e.g. 000000)',
+    defaultValue: '000000',
+  },
+  {
+    key: 'nftType',
+    label: 'NFT Type',
+    description: 'Standard token type category (e.g. art.v0)',
+    defaultValue: 'art.v0',
+  },
+];
+
 interface MetadataEditorModalProps {
   nft: NFToken | null;
   isOpen: boolean;
@@ -186,6 +262,12 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
     if (!metadata) return [];
     return Object.keys(metadata).filter((k) => !coreKeys.has(k));
   }, [metadata, coreKeys]);
+
+  // Standard fields that do not yet exist in the current metadata JSON
+  const availableSuggestions = useMemo(() => {
+    if (!metadata) return [];
+    return STANDARD_METADATA_FIELDS.filter((f) => !(f.key in metadata));
+  }, [metadata]);
 
   // Audits
   const nameAudit = useMemo(() => auditField(metadata?.name || '', 'Name'), [metadata?.name]);
@@ -1093,7 +1175,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                   );
                 })}
 
-                {/* Add Custom Field Inline Widget */}
+                {/* Add Field & Standard Suggestions Section */}
                 {!isAddingField ? (
                   <button
                     type="button"
@@ -1103,61 +1185,44 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      padding: '6px 12px',
+                      padding: '7px 14px',
                       borderRadius: 'var(--radius-md)',
                       background: 'rgba(255, 255, 255, 0.04)',
                       border: '1px dashed var(--border-subtle)',
                       color: 'var(--accent-cyan)',
-                      fontSize: '0.78rem',
+                      fontSize: '0.8rem',
                       fontWeight: 500,
                       cursor: 'pointer',
                       transition: 'all var(--transition-fast)',
                     }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(0, 230, 203, 0.08)';
+                      e.currentTarget.style.borderColor = 'rgba(0, 230, 203, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                    }}
                   >
-                    <Plus size={13} /> Add Field
+                    <Plus size={14} /> Add Field
                   </button>
                 ) : (
                   <div
                     style={{
-                      padding: '12px',
+                      padding: '16px',
                       borderRadius: 'var(--radius-md)',
-                      background: 'rgba(15, 23, 42, 0.7)',
+                      background: 'rgba(15, 23, 42, 0.85)',
                       border: '1px solid rgba(0, 230, 203, 0.3)',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '8px',
+                      gap: '14px',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
                     }}
                   >
-                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Add Field to JSON
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                          Field Key Name
-                        </label>
-                        <input
-                          type="text"
-                          value={newFieldName}
-                          onChange={(e) => setNewFieldName(e.target.value)}
-                          placeholder="e.g. license, artist, external_url"
-                          style={{ fontSize: '0.8rem' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                          Initial Value
-                        </label>
-                        <input
-                          type="text"
-                          value={newFieldValue}
-                          onChange={(e) => setNewFieldValue(e.target.value)}
-                          placeholder="e.g. CC0, MuseForge"
-                          style={{ fontSize: '0.8rem' }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '2px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#ffffff' }}>
+                        Add Metadata Field
+                      </span>
                       <button
                         type="button"
                         onClick={() => {
@@ -1166,41 +1231,144 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                           setNewFieldValue('');
                         }}
                         style={{
-                          padding: '5px 10px',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'transparent',
+                          background: 'none',
+                          border: 'none',
                           color: 'var(--text-muted)',
-                          fontSize: '0.75rem',
                           cursor: 'pointer',
+                          padding: '2px',
                         }}
                       >
-                        Cancel
+                        <X size={14} />
                       </button>
-                      <button
-                        type="button"
-                        disabled={!newFieldName.trim()}
-                        onClick={() => {
-                          if (!newFieldName.trim()) return;
-                          updateFormMetadata({
-                            ...metadata,
-                            [newFieldName.trim()]: newFieldValue,
-                          });
-                          setIsAddingField(false);
-                          setNewFieldName('');
-                          setNewFieldValue('');
-                        }}
-                        style={{
-                          padding: '5px 12px',
-                          borderRadius: 'var(--radius-sm)',
-                          background: !newFieldName.trim() ? 'rgba(255,255,255,0.1)' : 'var(--accent-cyan)',
-                          color: !newFieldName.trim() ? 'var(--text-muted)' : '#060913',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: !newFieldName.trim() ? 'default' : 'pointer',
-                        }}
-                      >
-                        Add Field
-                      </button>
+                    </div>
+
+                    {/* Standard Suggested Fields (XLS-20 & Ecosystem Standards) */}
+                    {availableSuggestions.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Standard Fields (Click to add)
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {availableSuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion.key}
+                              type="button"
+                              onClick={() => {
+                                updateFormMetadata({
+                                  ...metadata,
+                                  [suggestion.key]: suggestion.defaultValue,
+                                });
+                                setIsAddingField(false);
+                              }}
+                              title={suggestion.description}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '5px 10px',
+                                borderRadius: 'var(--radius-full)',
+                                background: 'rgba(0, 230, 203, 0.08)',
+                                border: '1px solid rgba(0, 230, 203, 0.25)',
+                                color: 'var(--accent-cyan)',
+                                fontSize: '0.75rem',
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                transition: 'all var(--transition-fast)',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(0, 230, 203, 0.18)';
+                                e.currentTarget.style.borderColor = 'var(--accent-cyan)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(0, 230, 203, 0.08)';
+                                e.currentTarget.style.borderColor = 'rgba(0, 230, 203, 0.25)';
+                              }}
+                            >
+                              <Plus size={11} />
+                              <span>{suggestion.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom Field Input */}
+                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Or Create Custom Field
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                            Key Name
+                          </label>
+                          <input
+                            type="text"
+                            value={newFieldName}
+                            onChange={(e) => setNewFieldName(e.target.value)}
+                            placeholder="e.g. edition, compiler, rarity"
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                            Initial Value
+                          </label>
+                          <input
+                            type="text"
+                            value={newFieldValue}
+                            onChange={(e) => setNewFieldValue(e.target.value)}
+                            placeholder="e.g. 1, HashLips, 42"
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddingField(false);
+                            setNewFieldName('');
+                            setNewFieldValue('');
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'transparent',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!newFieldName.trim()}
+                          onClick={() => {
+                            if (!newFieldName.trim()) return;
+                            updateFormMetadata({
+                              ...metadata,
+                              [newFieldName.trim()]: newFieldValue,
+                            });
+                            setIsAddingField(false);
+                            setNewFieldName('');
+                            setNewFieldValue('');
+                          }}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: !newFieldName.trim() ? 'rgba(255,255,255,0.1)' : 'var(--accent-cyan)',
+                            color: !newFieldName.trim() ? 'var(--text-muted)' : '#060913',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: !newFieldName.trim() ? 'default' : 'pointer',
+                          }}
+                        >
+                          Add Custom Field
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
