@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, LogOut, Smartphone, RefreshCw, Palette } from 'lucide-react';
+import { Settings, LogOut, Smartphone, RefreshCw, Palette, Sparkles } from 'lucide-react';
 
 interface NavbarProps {
   account: string;
@@ -8,6 +8,7 @@ interface NavbarProps {
   onRefreshNFTs: () => void;
   isLoading: boolean;
   onOpenXamanLogin: () => void;
+  onOpenMintModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,6 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRefreshNFTs,
   isLoading,
   onOpenXamanLogin,
+  onOpenMintModal,
 }) => {
   const shortenedAddress = account
     ? `${account.substring(0, 6)}...${account.substring(account.length - 4)}`
@@ -110,6 +112,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {shortenedAddress}
               </div>
 
+              {/* Mint Test Collection Button */}
+              {onOpenMintModal && (
+                <button
+                  type="button"
+                  onClick={onOpenMintModal}
+                  title="Mint 3 test Dynamic NFTs to Taxon 4"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '7px 13px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(0, 230, 203, 0.12)',
+                    border: '1px solid rgba(0, 230, 203, 0.35)',
+                    color: 'var(--accent-cyan)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)',
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>Mint Test NFTs (Taxon 4)</span>
+                </button>
+              )}
+
               {/* Settings */}
               <button
                 type="button"
@@ -148,24 +176,49 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={onOpenXamanLogin}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 16px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--accent-cyan)',
-                color: '#060913',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-              }}
-            >
-              <Smartphone size={16} />
-              <span>Sign In with Xaman</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {onOpenMintModal && (
+                <button
+                  type="button"
+                  onClick={onOpenMintModal}
+                  title="Mint 3 test Dynamic NFTs to Taxon 4"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(0, 230, 203, 0.12)',
+                    border: '1px solid rgba(0, 230, 203, 0.35)',
+                    color: 'var(--accent-cyan)',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>Mint Test NFTs (Taxon 4)</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onOpenXamanLogin}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--accent-cyan)',
+                  color: '#060913',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                }}
+              >
+                <Smartphone size={16} />
+                <span>Sign In with Xaman</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

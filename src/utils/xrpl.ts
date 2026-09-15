@@ -239,3 +239,73 @@ export function buildNFTokenModifyTx(
 
   return tx;
 }
+
+/**
+ * Test tokens from the Footwork by MuseForge collection (Taxon 3668)
+ * for testing dynamic NFT modifications on Taxon 4.
+ */
+export interface TestMintToken {
+  id: number;
+  name: string;
+  description: string;
+  uri: string;
+  hexUri: string;
+  image: string;
+}
+
+export const TEST_TAXON_4_TOKENS: TestMintToken[] = [
+  {
+    id: 1,
+    name: 'Vincent Van Togh',
+    description: 'The artist behind Footwork by MuseForge.',
+    uri: 'ipfs://QmcNaakb8LNqsTJaVQ2kCu5HV1sqFRTKiWYyXqS69ic77w',
+    hexUri: '697066733A2F2F516D634E61616B62384C4E7173544A615651326B43753548563173714652544B6957597958715336396963373777',
+    image: 'ipfs://QmTu25app7RWxfc8GLDsFAfAryaayZNS68EZPgysiFkTKH',
+  },
+  {
+    id: 2,
+    name: 'Footwork Timelapse - 3D Dragon',
+    description: 'Preserved creation timelapse of the first Footwork drawing.',
+    uri: 'ipfs://Qmcv7uJicnnYeUMdxMG1rbZAidA9GUWaR9KbUEthqCq6Do',
+    hexUri: '697066733A2F2F516D637637754A69636E6E5965554D64784D473172625A41696441394755576152394B625545746871437136446F',
+    image: 'ipfs://QmcByJ3QL3oMjeRJmyadZnTaTmCs4Cbg9mRXYY1brqcd4h',
+  },
+  {
+    id: 3,
+    name: '3D Dragon',
+    description: 'Inaugural foot-drawn artwork (original token 00181F409C86CAF471D6218D8ECADF1C65F5845E3837EAB571CC418203CA1B3B).',
+    uri: 'ipfs://Qmd9RCvyNzhXM9gHHjoofFCuxamRQVzrygJBTFnuTjiK9d',
+    hexUri: '697066733A2F2F516D6439524376794E7A68584D396748486A6F6F6646437578616D5251567A7279674A4254466E75546A694B3964',
+    image: 'ipfs://QmV6pStymHoAPWgmeq843LAL2N71Nhv2USkJDvKhvJzZA9',
+  },
+];
+
+/**
+ * Builds the unsigned NFTokenMint transaction object.
+ * Flags: 24 (tfTransferable = 8 | tfMutable = 16) allows live dynamic metadata editing.
+ */
+export function buildNFTokenMintTx(
+  account: string,
+  taxon: number = 4,
+  hexUri: string,
+  flags: number = 24,
+  transferFee: number = 0
+) {
+  const tx: Record<string, any> = {
+    TransactionType: 'NFTokenMint',
+    Account: account,
+    NFTokenTaxon: taxon,
+    Flags: flags,
+  };
+
+  if (transferFee > 0) {
+    tx.TransferFee = transferFee;
+  }
+
+  if (hexUri) {
+    tx.URI = hexUri;
+  }
+
+  return tx;
+}
+

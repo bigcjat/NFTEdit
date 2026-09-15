@@ -8,8 +8,9 @@ import { NFTCard } from './components/NFTCard';
 import { MetadataEditorModal } from './components/MetadataEditorModal';
 import { ModifyModal } from './components/ModifyModal';
 import { SettingsModal } from './components/SettingsModal';
+import { MintCollectionModal } from './components/MintCollectionModal';
 import { createXamanSignInPayload, subscribeToXamanPayload, getXamanPayload } from './utils/xaman';
-import { RefreshCw, Smartphone, ArrowRight } from 'lucide-react';
+import { RefreshCw, Smartphone, ArrowRight, Sparkles } from 'lucide-react';
 
 
 export function App() {
@@ -23,6 +24,9 @@ export function App() {
   const [account, setAccount] = useState<string>(() => {
     return sessionStorage.getItem('xrpl_active_account') || '';
   });
+  
+  const [isMintModalOpen, setIsMintModalOpen] = useState<boolean>(false);
+
   
   const [network, setNetwork] = useState<XRPLNetwork>('mainnet');
 
@@ -207,6 +211,7 @@ export function App() {
         onRefreshNFTs={loadNFTs}
         isLoading={isLoadingNFTs}
         onOpenXamanLogin={() => {}}
+        onOpenMintModal={() => setIsMintModalOpen(true)}
       />
 
       <main className="main-content">
@@ -345,6 +350,32 @@ export function App() {
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                 Directly inspect your minted NFTs or connect with Xaman above to sign modifications.
               </span>
+
+              {/* Quick Test Mint Button on Landing Page */}
+              <div style={{ width: '100%', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsMintModalOpen(true)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(0, 230, 203, 0.08)',
+                    border: '1px dashed rgba(0, 230, 203, 0.35)',
+                    color: 'var(--accent-cyan)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>Mint Test Collection (Taxon 4)</span>
+                </button>
+              </div>
             </form>
           </div>
         ) : (
@@ -359,6 +390,7 @@ export function App() {
               onToggleMutableOnly={setMutableOnly}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              onOpenMintModal={() => setIsMintModalOpen(true)}
             />
 
             {/* Error banner */}
@@ -502,6 +534,27 @@ export function App() {
         }}
         network={network}
         onChangeNetwork={setNetwork}
+      />
+
+      {/* Mint Test Collection Modal (Taxon 4) */}
+      <MintCollectionModal
+        isOpen={isMintModalOpen}
+        onClose={() => setIsMintModalOpen(false)}
+        userAccount={account}
+        network={network}
+        xamanSettings={{
+          apiKey: '16c555db-35ce-4b84-a656-53b2ec76b5bc',
+          apiSecret: '78e21880-3040-4972-9bb7-3a9e06a0ac35',
+          userAddress: account,
+          isConnected: !!account,
+        }}
+        customGateway={pinataSettings.gateway}
+        onMintSuccess={async (taxon) => {
+          setIsMintModalOpen(false);
+          await loadNFTs();
+          setSelectedTaxon(taxon);
+          setSearchQuery('');
+        }}
       />
     </div>
   );
