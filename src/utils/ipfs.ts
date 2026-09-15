@@ -342,7 +342,10 @@ export async function uploadJSONViaRelay(
 
   const resp = await fetch(`${endpoint}/upload-json`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-nftedit-client': 'xrpl-dynamic-nft-v1',
+    },
     body: JSON.stringify(metadata),
   });
 
@@ -375,6 +378,9 @@ export async function uploadFileViaRelay(
 
   const resp = await fetch(`${endpoint}/upload-file`, {
     method: 'POST',
+    headers: {
+      'x-nftedit-client': 'xrpl-dynamic-nft-v1',
+    },
     body: formData,
   });
 

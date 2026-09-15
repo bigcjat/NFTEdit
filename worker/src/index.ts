@@ -1,38 +1,80 @@
 export interface Env {
   PINATA_JWT: string;
+  ALLOWED_ORIGINS?: string;
 }
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// Trusted domains allowed to use this relay
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://bigcjat.github.io',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:4173',
+];
+
+function isOriginAllowed(origin: string | null, env: Env): boolean {
+  if (!origin) return false;
+  const custom = env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()) : [];
+  const allowedList = [...DEFAULT_ALLOWED_ORIGINS, ...custom];
+  return allowedList.some((allowed) => origin.startsWith(allowed));
+}
+
+function getCorsHeaders(origin: string | null, env: Env) {
+  const allowed = isOriginAllowed(origin, env);
+  return {
+    'Access-Control-Allow-Origin': allowed && origin ? origin : DEFAULT_ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-nftedit-client',
+  };
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const origin = request.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin, env);
 
-    // Handle CORS preflight
+    // 1. Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
       });
     }
 
-    // Health check
+    // 2. Health check (public GET)
     if (url.pathname === '/' || url.pathname === '/health') {
       return new Response(
         JSON.stringify({
           status: 'ok',
           service: 'XRPL Dynamic NFT IPFS Relay',
           hasPinataConfigured: !!env.PINATA_JWT,
+          version: '1.1.0-protected',
         }),
         {
           status: 200,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
+    }
+
+    // 3. Security: Origin Check on all write requests
+    if (request.method === 'POST') {
+      // Must come from your GitHub Pages domain or local dev
+      if (origin && !isOriginAllowed(origin, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden: Unauthorized request origin.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Must include the app client verification header
+      const clientHeader = request.headers.get('x-nftedit-client');
+      if (clientHeader !== 'xrpl-dynamic-nft-v1') {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden: Missing or invalid client verification header.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Ensure PINATA_JWT is configured
@@ -43,26 +85,34 @@ export default {
         }),
         {
           status: 500,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
-    // 1. Upload JSON Metadata
+    // 4. Upload JSON Metadata (Strictly enforced <= 50 KB)
     if (request.method === 'POST' && (url.pathname === '/upload-json' || url.pathname === '/api/upload-json')) {
       try {
-        const body = await request.json<any>();
-        if (!body || typeof body !== 'object') {
+        const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
+        if (contentLength > 50 * 1024) {
           return new Response(
-            JSON.stringify({ error: 'Invalid JSON payload. Expected metadata object.' }),
-            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Payload Too Large: JSON metadata must be under 50 KB.' }),
+            { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        const tokenName = body.name || 'NFT Metadata';
-        const fileName = `${tokenName.substring(0, 40)}.json`;
+        const body = await request.json<any>();
+        if (!body || typeof body !== 'object' || !body.name) {
+          return new Response(
+            JSON.stringify({ error: 'Invalid payload: Expected NFT metadata object with a name field.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-        // 1a. Try Pinata V3 Files endpoint
+        const tokenName = String(body.name).substring(0, 40);
+        const fileName = `${tokenName || 'metadata'}.json`;
+
+        // 4a. Pinata V3 Files endpoint
         try {
           const jsonBlob = new Blob([JSON.stringify(body, null, 2)], { type: 'application/json' });
           const v3Form = new FormData();
@@ -89,7 +139,7 @@ export default {
                 }),
                 {
                   status: 200,
-                  headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 }
               );
             }
@@ -98,7 +148,7 @@ export default {
           console.warn('Worker: Pinata V3 upload failed, trying V1 fallback:', v3Err);
         }
 
-        // 1b. Fallback to Legacy Pinata V1 endpoint
+        // 4b. Fallback to Legacy Pinata V1 endpoint
         const pinataPayload = {
           pinataContent: body,
           pinataMetadata: {
@@ -126,7 +176,7 @@ export default {
           const errText = await pinataResp.text();
           return new Response(
             JSON.stringify({ error: `Pinata upload error (${pinataResp.status}): ${errText}` }),
-            { status: pinataResp.status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            { status: pinataResp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -140,25 +190,25 @@ export default {
           }),
           {
             status: 200,
-            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           }
         );
       } catch (err: any) {
         return new Response(
           JSON.stringify({ error: err.message || 'Failed to process JSON upload.' }),
-          { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
-    // 2. Upload Media File (Binary / Image)
+    // 5. Upload Media File (Binary / Image, strictly enforced <= 15 MB and image MIME)
     if (request.method === 'POST' && (url.pathname === '/upload-file' || url.pathname === '/api/upload-file')) {
       try {
         const contentType = request.headers.get('content-type') || '';
         if (!contentType.includes('multipart/form-data')) {
           return new Response(
             JSON.stringify({ error: 'Expected multipart/form-data with file' }),
-            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -167,19 +217,27 @@ export default {
         if (!file || !(file instanceof File)) {
           return new Response(
             JSON.stringify({ error: "Missing 'file' in multipart form data." }),
-            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Max file size: 25 MB
-        if (file.size > 25 * 1024 * 1024) {
+        // Security check: Only allow images (PNG, JPG, WEBP, GIF, SVG)
+        if (!file.type.startsWith('image/')) {
           return new Response(
-            JSON.stringify({ error: 'File exceeds 25 MB size limit.' }),
-            { status: 413, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Forbidden: Only image files are allowed.' }),
+            { status: 415, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // 2a. Try Pinata V3 Files endpoint
+        // Max file size: 15 MB
+        if (file.size > 15 * 1024 * 1024) {
+          return new Response(
+            JSON.stringify({ error: 'Payload Too Large: Image exceeds 15 MB size limit.' }),
+            { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // 5a. Try Pinata V3 Files endpoint
         try {
           const v3Form = new FormData();
           v3Form.append('file', file, file.name);
@@ -205,7 +263,7 @@ export default {
                 }),
                 {
                   status: 200,
-                  headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 }
               );
             }
@@ -214,7 +272,7 @@ export default {
           console.warn('Worker: Pinata V3 file upload failed, trying V1 fallback:', v3Err);
         }
 
-        // 2b. Fallback to Legacy Pinata V1 endpoint
+        // 5b. Fallback to Legacy Pinata V1 endpoint
         const forwardFormData = new FormData();
         forwardFormData.append('file', file);
         forwardFormData.append(
@@ -241,7 +299,7 @@ export default {
           const errText = await pinataResp.text();
           return new Response(
             JSON.stringify({ error: `Pinata file upload error (${pinataResp.status}): ${errText}` }),
-            { status: pinataResp.status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            { status: pinataResp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -255,20 +313,20 @@ export default {
           }),
           {
             status: 200,
-            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           }
         );
       } catch (err: any) {
         return new Response(
           JSON.stringify({ error: err.message || 'Failed to process file upload.' }),
-          { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
     return new Response(JSON.stringify({ error: 'Endpoint not found.' }), {
       status: 404,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   },
 };
