@@ -5,4 +5,14 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  server: {
+    proxy: {
+      '/api/xaman': {
+        target: 'https://xumm.app/api/v1/platform',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/xaman/, ''),
+      },
+    },
+  },
 })
+

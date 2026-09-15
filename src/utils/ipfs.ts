@@ -1,10 +1,9 @@
 import type { NFTMetadata } from '../types';
 
 export const DEFAULT_GATEWAYS = [
-  'https://gateway.pinata.cloud/ipfs/',
-  'https://dweb.link/ipfs/',
   'https://ipfs.io/ipfs/',
-  'https://cloudflare-ipfs.com/ipfs/',
+  'https://dweb.link/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/',
 ];
 
 /**

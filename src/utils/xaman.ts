@@ -38,6 +38,7 @@ export const DEFAULT_XAMAN_SECRET = '78e21880-3040-4972-9bb7-3a9e06a0ac35';
 
 /**
  * Attempts to create a Xaman Payload using the Xaman API if credentials are provided.
+ * Tries local proxy endpoint first to bypass browser CORS preflight restrictions on custom headers.
  */
 export async function createXamanPayload(
   txJson: Record<string, any>,
@@ -48,28 +49,34 @@ export async function createXamanPayload(
     return null;
   }
 
-  try {
-    const resp = await fetch('https://xumm.app/api/v1/platform/payload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey.trim(),
-        'X-API-Secret': apiSecret.trim(),
-      },
-      body: JSON.stringify({
-        txjson: txJson,
-      }),
-    });
+  // Use local proxy first to avoid browser preflight CORS header restrictions
+  const endpoints = ['/api/xaman/payload', 'https://xumm.app/api/v1/platform/payload'];
 
-    if (resp.ok) {
-      return await resp.json();
+  for (const endpoint of endpoints) {
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey.trim(),
+          'X-API-Secret': apiSecret.trim(),
+        },
+        body: JSON.stringify({
+          txjson: txJson,
+        }),
+      });
+
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch {
+      // try next endpoint
     }
-  } catch (err) {
-    console.warn('Xaman API direct call failed, falling back to client-side QR:', err);
   }
 
   return null;
 }
+
 
 /**
  * Creates a sign-in payload for Xaman.
@@ -114,4 +121,37 @@ export function subscribeToXamanPayload(
       ws.close();
     }
   };
+}
+
+/**
+ * Fetches status and resolution details of an existing Xaman payload.
+ */
+export async function getXamanPayload(
+  uuid: string,
+  apiKey = DEFAULT_XAMAN_KEY,
+  apiSecret = DEFAULT_XAMAN_SECRET
+): Promise<any | null> {
+  if (!uuid || !apiKey) return null;
+
+  const endpoints = [`/api/xaman/payload/${uuid}`, `https://xumm.app/api/v1/platform/payload/${uuid}`];
+
+  for (const endpoint of endpoints) {
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': apiKey.trim(),
+          'X-API-Secret': apiSecret ? apiSecret.trim() : '',
+        },
+      });
+
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch {
+      // try next endpoint
+    }
+  }
+
+  return null;
 }

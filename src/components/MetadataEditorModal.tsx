@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { NFToken, NFTMetadata, TraitAttribute } from '../types';
 import { auditField, auditMetadata, sanitizeText } from '../utils/audit';
 import { ByteBadge } from './ByteBadge';
-import { resolveIPFSUrl, downloadJsonFile } from '../utils/ipfs';
+import { resolveIPFSUrl, downloadJsonFile, fetchIPFSMetadata } from '../utils/ipfs';
 import { 
   X, 
   Sparkles, 
@@ -16,8 +16,10 @@ import {
   Code, 
   Eye, 
   ArrowRight,
-  Info
+  Info,
+  RefreshCw
 } from 'lucide-react';
+
 
 interface MetadataEditorModalProps {
   nft: NFToken | null;
@@ -57,12 +59,39 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   const [activeTab, setActiveTab] = useState<'form' | 'raw'>('form');
   const [rawJsonText, setRawJsonText] = useState('');
   const [rawJsonError, setRawJsonError] = useState<string | null>(null);
+  const [isFetchingIpfs, setIsFetchingIpfs] = useState<boolean>(false);
+  const [fetchIpfsError, setFetchIpfsError] = useState<string | null>(null);
 
   // Sync initial metadata when opening
   useEffect(() => {
     setMetadata(initialMetadata);
     setRawJsonText(JSON.stringify(initialMetadata, null, 2));
   }, [initialMetadata]);
+
+  // Load actual IPFS metadata on-demand if token has decodedUri and metadata is not cached
+  const handleLoadFromIPFS = async () => {
+    if (!nft?.decodedUri) return;
+    setIsFetchingIpfs(true);
+    setFetchIpfsError(null);
+    try {
+      const fetched = await fetchIPFSMetadata(nft.decodedUri, customGateway);
+      setMetadata(fetched);
+      setRawJsonText(JSON.stringify(fetched, null, 2));
+      setRawJsonError(null);
+    } catch (err: any) {
+      console.warn('Could not load IPFS metadata for modal:', err);
+      setFetchIpfsError('Could not fetch IPFS metadata from public gateways. You can edit using template or paste raw JSON.');
+    } finally {
+      setIsFetchingIpfs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && nft && !nft.metadata && nft.decodedUri) {
+      handleLoadFromIPFS();
+    }
+  }, [isOpen, nft?.nft_id, nft?.decodedUri]);
+
 
   // Handle Raw JSON input changes
   const handleRawJsonChange = (val: string) => {
@@ -261,8 +290,60 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
           </div>
         </div>
 
+        {/* On-demand IPFS Load Banner */}
+        {isFetchingIpfs && (
+          <div
+            style={{
+              padding: '8px 22px',
+              backgroundColor: 'rgba(0, 230, 203, 0.12)',
+              borderBottom: '1px solid rgba(0, 230, 203, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: 'var(--accent-cyan)',
+              fontSize: '0.8rem',
+            }}
+          >
+            <RefreshCw size={14} className="animate-spin" />
+            <span>Fetching existing metadata from IPFS: {nft.decodedUri}...</span>
+          </div>
+        )}
+
+        {fetchIpfsError && !isFetchingIpfs && (
+          <div
+            style={{
+              padding: '8px 22px',
+              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              borderBottom: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              color: '#fcd34d',
+              fontSize: '0.78rem',
+            }}
+          >
+            <span>{fetchIpfsError}</span>
+            <button
+              type="button"
+              onClick={handleLoadFromIPFS}
+              style={{
+                background: 'rgba(245, 158, 11, 0.2)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                borderRadius: '4px',
+                padding: '2px 8px',
+                color: '#fff',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Global Audit Metric Banner */}
         <div
+
           style={{
             padding: '10px 22px',
             backgroundColor: globalAudit.hasErrors ? 'rgba(244, 63, 94, 0.12)' : 'rgba(15, 23, 42, 0.4)',
