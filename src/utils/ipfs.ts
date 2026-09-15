@@ -1,12 +1,13 @@
 import type { NFTMetadata } from '../types';
 
+// Verified live gateways with open CORS:
+// 1. ipfs.filebase.io (Active enterprise IPFS node, 200 OK in ~300ms with CORS: *)
+// 2. gateway.pinata.cloud (Official Pinata gateway, 200 OK with CORS: *)
+// 3. nftedit.bigcjat.workers.dev (Cloudflare Worker gateway proxy)
 export const DEFAULT_GATEWAYS = [
-  'https://gateway.pinata.cloud/ipfs/',
   'https://ipfs.filebase.io/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/',
   'https://nftedit.bigcjat.workers.dev/ipfs/',
-  'https://4everland.io/ipfs/',
-  'https://dweb.link/ipfs/',
-  'https://w3s.link/ipfs/',
 ];
 
 // In-memory cache by URI to prevent duplicate fetches
