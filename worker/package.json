@@ -4,6 +4,7 @@
   "description": "Cloudflare Worker relay for IPFS JSON & Image pinning for XRPL Dynamic NFTs",
   "main": "src/index.ts",
   "scripts": {
+    "build": "echo 'Build OK'",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"
   },
