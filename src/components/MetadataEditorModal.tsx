@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import type { NFToken, NFTMetadata, TraitAttribute } from '../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import type { NFToken, NFTMetadata, TraitAttribute, PinataSettings } from '../types';
 import { auditField, auditMetadata, sanitizeText } from '../utils/audit';
 import { ByteBadge } from './ByteBadge';
-import { downloadJsonFile, fetchIPFSMetadata } from '../utils/ipfs';
+import { downloadJsonFile, fetchIPFSMetadata, uploadFileToPinata, uploadFileToLocalIPFSNode } from '../utils/ipfs';
 import { IPFSImage } from './IPFSImage';
 import { 
   X, 
@@ -18,7 +18,8 @@ import {
   Eye, 
   ArrowRight,
   Info,
-  RefreshCw
+  RefreshCw,
+  Upload
 } from 'lucide-react';
 
 
@@ -29,6 +30,7 @@ interface MetadataEditorModalProps {
   onProceedToSign: (updatedMetadata: NFTMetadata) => void;
   customGateway?: string;
   onMetadataLoaded?: (nftId: string, metadata: NFTMetadata) => void;
+  pinataSettings?: PinataSettings;
 }
 
 export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
@@ -38,6 +40,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   onProceedToSign,
   customGateway,
   onMetadataLoaded,
+  pinataSettings,
 }) => {
   if (!isOpen || !nft) return null;
 
@@ -55,6 +58,67 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   const [rawJsonError, setRawJsonError] = useState<string | null>(null);
   const [isFetchingIpfs, setIsFetchingIpfs] = useState<boolean>(false);
   const [fetchIpfsError, setFetchIpfsError] = useState<string | null>(null);
+
+  // New Image Replacement & IPFS Upload State
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingImagePreviewUrl, setPendingImagePreviewUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
+  const [imageUploadSuccess, setImageUploadSuccess] = useState<string | null>(null);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Clean up object URL when unmounting
+  useEffect(() => {
+    return () => {
+      if (pendingImagePreviewUrl) {
+        URL.revokeObjectURL(pendingImagePreviewUrl);
+      }
+    };
+  }, [pendingImagePreviewUrl]);
+
+  const handleSelectImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingImageFile(file);
+    setImageUploadSuccess(null);
+    setImageUploadError(null);
+    if (pendingImagePreviewUrl) {
+      URL.revokeObjectURL(pendingImagePreviewUrl);
+    }
+    const preview = URL.createObjectURL(file);
+    setPendingImagePreviewUrl(preview);
+  };
+
+  const handleUploadImageFile = async (fileToUpload?: File): Promise<string | null> => {
+    const targetFile = fileToUpload || pendingImageFile;
+    if (!targetFile) return null;
+    setIsUploadingImage(true);
+    setImageUploadError(null);
+    try {
+      let resultUri = '';
+      if (pinataSettings?.jwt) {
+        const res = await uploadFileToPinata(targetFile, pinataSettings.jwt);
+        resultUri = res.uri;
+      } else {
+        const res = await uploadFileToLocalIPFSNode(targetFile);
+        resultUri = res.uri;
+      }
+
+      if (metadata) {
+        const updated = { ...metadata, image: resultUri };
+        setMetadata(updated);
+        setRawJsonText(JSON.stringify(updated, null, 2));
+      }
+      setImageUploadSuccess(resultUri);
+      return resultUri;
+    } catch (err: any) {
+      const msg = err.message || 'Image upload to IPFS failed. Ensure local IPFS Desktop / Kubo is running or Pinata JWT is set.';
+      setImageUploadError(msg);
+      return null;
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   // Sync initial metadata when opening
   useEffect(() => {
@@ -138,6 +202,22 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
       }));
     }
     updateFormMetadata(cleaned);
+  };
+
+  // Proceed to sign: if pending image file exists, upload to IPFS first, then proceed
+  const handleProceed = async () => {
+    if (!metadata) return;
+
+    if (pendingImageFile) {
+      const uploadedUri = await handleUploadImageFile(pendingImageFile);
+      if (!uploadedUri) {
+        return; // Error is shown
+      }
+      onProceedToSign({ ...metadata, image: uploadedUri });
+      return;
+    }
+
+    onProceedToSign(metadata);
   };
 
   // Attribute Handlers
@@ -471,7 +551,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                   gap: '16px',
                 }}
               >
-                {/* Image Preview with multi-gateway cycling */}
+                {/* Image Preview with multi-gateway cycling or local pending file */}
                 <div
                   style={{
                     width: '100%',
@@ -484,13 +564,180 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                   }}
                 >
                   <div style={{ position: 'absolute', inset: 0 }}>
-                    <IPFSImage
-                      src={metadata.image}
-                      alt={metadata.name || 'NFT Image'}
-                      customGateway={customGateway}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+                    {pendingImagePreviewUrl ? (
+                      <img
+                        src={pendingImagePreviewUrl}
+                        alt="New Image Preview"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <IPFSImage
+                        src={metadata.image}
+                        alt={metadata.name || 'NFT Image'}
+                        customGateway={customGateway}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    )}
                   </div>
+                </div>
+
+                {/* Image File Selector & IPFS Upload Button */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleSelectImageFile}
+                    style={{ display: 'none' }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'rgba(0, 230, 203, 0.08)',
+                        border: '1px dashed rgba(0, 230, 203, 0.4)',
+                        color: 'var(--accent-cyan)',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Upload size={13} />
+                      {pendingImageFile ? 'Change Image Selection' : 'Upload New Image File'}
+                    </button>
+
+                    {pendingImageFile && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingImageFile(null);
+                          if (pendingImagePreviewUrl) {
+                            URL.revokeObjectURL(pendingImagePreviewUrl);
+                            setPendingImagePreviewUrl(null);
+                          }
+                          setImageUploadSuccess(null);
+                          setImageUploadError(null);
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                        }}
+                        title="Revert to original image"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Pending file info & immediate upload action */}
+                  {pendingImageFile && (
+                    <div
+                      style={{
+                        padding: '8px 10px',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid var(--border-card)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.72rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>
+                          {pendingImageFile.name}
+                        </span>
+                        <span>{(pendingImageFile.size / 1024).toFixed(1)} KB</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUploadImageFile()}
+                        disabled={isUploadingImage}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '4px',
+                          background: isUploadingImage ? 'rgba(255,255,255,0.1)' : 'var(--accent-cyan)',
+                          color: isUploadingImage ? 'var(--text-muted)' : '#060913',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          cursor: isUploadingImage ? 'default' : 'pointer',
+                        }}
+                      >
+                        {isUploadingImage ? (
+                          <>
+                            <RefreshCw size={12} className="animate-spin" /> Uploading image to IPFS...
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={12} /> Pin Image to IPFS
+                          </>
+                        )}
+                      </button>
+
+                      <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)' }}>
+                        Target: {pinataSettings?.jwt ? 'Pinata Cloud' : 'Local Kubo Node (127.0.0.1:5001)'}
+                      </span>
+                    </div>
+                  )}
+
+                  {imageUploadSuccess && (
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: '#6ee7b7',
+                        fontSize: '0.7rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Image Pinned: {imageUploadSuccess}
+                      </span>
+                    </div>
+                  )}
+
+                  {imageUploadError && (
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        background: 'rgba(244, 63, 94, 0.1)',
+                        border: '1px solid rgba(244, 63, 94, 0.3)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: '#fca5a5',
+                        fontSize: '0.7rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                      <span>{imageUploadError}</span>
+                    </div>
+                  )}
                 </div>
 
             {/* Token Ledger Metadata */}
@@ -629,13 +876,43 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                     </label>
                     <ByteBadge audit={imageAudit} compact />
                   </div>
-                  <input
-                    type="text"
-                    value={metadata.image || ''}
-                    onChange={(e) => updateFormMetadata({ ...metadata, image: e.target.value })}
-                    placeholder="ipfs://Qm... or https://..."
-                    style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={metadata.image || ''}
+                      onChange={(e) => {
+                        updateFormMetadata({ ...metadata, image: e.target.value });
+                        if (pendingImagePreviewUrl) {
+                          URL.revokeObjectURL(pendingImagePreviewUrl);
+                          setPendingImagePreviewUrl(null);
+                        }
+                        setPendingImageFile(null);
+                      }}
+                      placeholder="ipfs://bafy... or https://..."
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Choose image file from your device"
+                      style={{
+                        padding: '0 14px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--accent-cyan)',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Upload size={13} /> Browse
+                    </button>
+                  </div>
                 </div>
 
                 {/* Field: Collection Info */}
@@ -860,8 +1137,8 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => metadata && onProceedToSign(metadata)}
-              disabled={!metadata || !nft.isMutable || globalAudit.hasErrors || !!rawJsonError}
+              onClick={handleProceed}
+              disabled={!metadata || !nft.isMutable || globalAudit.hasErrors || !!rawJsonError || isUploadingImage}
               title={
                 !nft.isMutable
                   ? 'Token is immutable (tfMutable is not set)'
@@ -875,20 +1152,30 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                 padding: '9px 22px',
                 borderRadius: 'var(--radius-md)',
                 background:
-                  !metadata || !nft.isMutable || globalAudit.hasErrors || !!rawJsonError
+                  !metadata || !nft.isMutable || globalAudit.hasErrors || !!rawJsonError || isUploadingImage
                     ? 'rgba(255, 255, 255, 0.08)'
                     : 'linear-gradient(135deg, #00e6cb 0%, #38bdf8 100%)',
-                color: !metadata || !nft.isMutable || globalAudit.hasErrors || !!rawJsonError ? 'var(--text-muted)' : '#060913',
+                color: !metadata || !nft.isMutable || globalAudit.hasErrors || !!rawJsonError || isUploadingImage ? 'var(--text-muted)' : '#060913',
                 fontWeight: 600,
                 fontSize: '0.88rem',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: metadata && nft.isMutable && !globalAudit.hasErrors ? '0 0 20px -3px rgba(0, 230, 203, 0.4)' : 'none',
+                boxShadow: metadata && nft.isMutable && !globalAudit.hasErrors && !isUploadingImage ? '0 0 20px -3px rgba(0, 230, 203, 0.4)' : 'none',
+                cursor: !metadata || !nft.isMutable || globalAudit.hasErrors || !!rawJsonError || isUploadingImage ? 'default' : 'pointer',
               }}
             >
-              <span>Upload to IPFS & Modify URI</span>
-              <ArrowRight size={16} />
+              {isUploadingImage ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  <span>Uploading Image to IPFS...</span>
+                </>
+              ) : (
+                <>
+                  <span>Upload to IPFS & Modify URI</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
             </button>
           </div>
         </div>

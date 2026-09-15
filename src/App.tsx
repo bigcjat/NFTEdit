@@ -459,6 +459,7 @@ export function App() {
             setSelectedNFT(null);
           }}
           customGateway={pinataSettings.gateway}
+          pinataSettings={pinataSettings}
           onMetadataLoaded={handleMetadataLoaded}
         />
       )}

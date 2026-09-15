@@ -251,6 +251,85 @@ export async function uploadToLocalIPFSNode(
 }
 
 /**
+ * Uploads a binary media file (image/video) to IPFS via Pinata.
+ */
+export async function uploadFileToPinata(
+  file: File,
+  pinataJwt: string
+): Promise<{ ipfsHash: string; uri: string }> {
+  if (!pinataJwt) {
+    throw new Error('Pinata JWT is required. Please set it in Settings.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const metadata = JSON.stringify({
+    name: file.name,
+    keyvalues: {
+      platform: 'XRPL-DynamicNFT-Editor',
+      timestamp: new Date().toISOString(),
+    },
+  });
+  formData.append('pinataMetadata', metadata);
+
+  const options = JSON.stringify({
+    cidVersion: 1,
+  });
+  formData.append('pinataOptions', options);
+
+  const resp = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${pinataJwt.trim()}`,
+    },
+    body: formData,
+  });
+
+  if (!resp.ok) {
+    const errorText = await resp.text();
+    throw new Error(`Pinata file upload failed (${resp.status}): ${errorText}`);
+  }
+
+  const data = await resp.json();
+  const ipfsHash = data.IpfsHash;
+  return {
+    ipfsHash,
+    uri: `ipfs://${ipfsHash}`,
+  };
+}
+
+/**
+ * Uploads a binary media file directly to a local or self-hosted IPFS Kubo node.
+ * 100% Free, local, open-source, and private.
+ */
+export async function uploadFileToLocalIPFSNode(
+  file: File,
+  endpoint = 'http://127.0.0.1:5001'
+): Promise<{ ipfsHash: string; uri: string }> {
+  const cleanEndpoint = endpoint.replace(/\/+$/, '');
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const resp = await fetch(`${cleanEndpoint}/api/v0/add?pin=true`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Local IPFS file upload failed (${resp.status}): ${errText}`);
+  }
+
+  const data = await resp.json();
+  const ipfsHash = data.Hash;
+  return {
+    ipfsHash,
+    uri: `ipfs://${ipfsHash}`,
+  };
+}
+
+/**
  * Helper to download JSON data to local device.
  */
 export function downloadJsonFile(data: any, filename: string) {
