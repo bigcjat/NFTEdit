@@ -118,11 +118,9 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   onMetadataLoaded,
   pinataSettings,
 }) => {
-  if (!isOpen || !nft) return null;
-
   // Local editable metadata state: NEVER use fake mock data. Either real metadata or null!
   const initialMetadata: NFTMetadata | null = useMemo(() => {
-    if (nft.metadata) {
+    if (nft?.metadata) {
       return JSON.parse(JSON.stringify(nft.metadata));
     }
     return null;
@@ -328,6 +326,8 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
     const attrs = (metadata.attributes || []).filter((_, i) => i !== index);
     updateFormMetadata({ ...metadata, attributes: attrs });
   };
+
+  if (!isOpen || !nft) return null;
 
   return (
     <div

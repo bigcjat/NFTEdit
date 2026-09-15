@@ -40,8 +40,6 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
   network,
   onSuccess,
 }) => {
-  if (!isOpen) return null;
-
   const [step, setStep] = useState<'ipfs' | 'review' | 'sign' | 'complete'>('ipfs');
   
   // IPFS State
@@ -207,6 +205,8 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
     setCopiedTx(true);
     setTimeout(() => setCopiedTx(false), 1500);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div

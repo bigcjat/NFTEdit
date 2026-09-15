@@ -32,6 +32,23 @@ export const IPFSImage: React.FC<IPFSImageProps> = ({
     setHasAllFailed(false);
   }, [src, customGateway]);
 
+  const handleError = () => {
+    if (gatewayIndex + 1 < candidateUrls.length) {
+      setGatewayIndex((prev) => prev + 1);
+    } else {
+      setHasAllFailed(true);
+    }
+  };
+
+  // If a gateway hangs on an image, automatically advance to next gateway after 4.5s
+  useEffect(() => {
+    if (isLoaded || hasAllFailed || !src || candidateUrls.length === 0) return;
+    const timer = setTimeout(() => {
+      handleError();
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [gatewayIndex, isLoaded, hasAllFailed, src, candidateUrls.length]);
+
   if (!src || candidateUrls.length === 0 || hasAllFailed) {
     return (
       <div
@@ -54,23 +71,6 @@ export const IPFSImage: React.FC<IPFSImageProps> = ({
   }
 
   const currentUrl = candidateUrls[gatewayIndex] || candidateUrls[0];
-
-  const handleError = () => {
-    if (gatewayIndex + 1 < candidateUrls.length) {
-      setGatewayIndex((prev) => prev + 1);
-    } else {
-      setHasAllFailed(true);
-    }
-  };
-
-  // If a gateway hangs on an image, automatically advance to next gateway after 4.5s
-  useEffect(() => {
-    if (isLoaded || hasAllFailed || !src) return;
-    const timer = setTimeout(() => {
-      handleError();
-    }, 4500);
-    return () => clearTimeout(timer);
-  }, [gatewayIndex, isLoaded, hasAllFailed, src]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
