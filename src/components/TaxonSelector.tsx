@@ -17,7 +17,6 @@ interface TaxonSelectorProps {
   onToggleMutableOnly: (val: boolean) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onOpenMintModal?: () => void;
 }
 
 export const TaxonSelector: React.FC<TaxonSelectorProps> = ({
@@ -28,7 +27,6 @@ export const TaxonSelector: React.FC<TaxonSelectorProps> = ({
   onToggleMutableOnly,
   searchQuery,
   onSearchChange,
-  onOpenMintModal,
 }) => {
   // Group NFTs by Taxon
   const taxonGroups: TaxonGroup[] = React.useMemo(() => {
@@ -137,31 +135,6 @@ export const TaxonSelector: React.FC<TaxonSelectorProps> = ({
             {totalMutable}
           </span>
         </button>
-
-        {onOpenMintModal && (
-          <button
-            type="button"
-            onClick={onOpenMintModal}
-            title="Mint 3 test Dynamic NFTs to Taxon 4"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              borderRadius: 'var(--radius-full)',
-              background: 'rgba(0, 230, 203, 0.09)',
-              border: '1px solid rgba(0, 230, 203, 0.3)',
-              color: 'var(--accent-cyan)',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all var(--transition-fast)',
-            }}
-          >
-            <Sparkles size={13} />
-            <span>Mint Test Collection (Taxon 4)</span>
-          </button>
-        )}
       </div>
 
       {/* Taxon Chips List */}

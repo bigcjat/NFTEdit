@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { NFToken, NFTMetadata, PinataSettings, XamanSettings, XRPLNetwork } from '../types';
 import { utf8ToHex, buildNFTokenModifyTx } from '../utils/xrpl';
 import { uploadMetadataSmart, downloadJsonFile } from '../utils/ipfs';
-import { generateClientQRCode, createXamanPayload, subscribeToXamanPayload } from '../utils/xaman';
+import { generateClientQRCode, getXumm } from '../utils/xaman';
 import { 
   X, 
   Upload, 
@@ -36,7 +36,7 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
   updatedMetadata,
   userAccount,
   pinataSettings,
-  xamanSettings,
+  xamanSettings: _xamanSettings,
   network,
   onSuccess,
 }) => {
@@ -111,33 +111,38 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
   const handleProceedToSign = async () => {
     setStep('sign');
 
-    // Try Xaman API if credentials are set
-    if (xamanSettings.apiKey && xamanSettings.apiSecret) {
-      try {
-        const payload = await createXamanPayload(txJson, xamanSettings.apiKey, xamanSettings.apiSecret);
+    // Try Xaman PKCE payload signing if authenticated
+    try {
+      const xumm = getXumm();
+      const state = await xumm.state();
+      if (state?.sdk) {
+        const payload: any = await (state.sdk.payload.create as any)({ txjson: txJson });
         if (payload?.refs?.qr_png) {
           setQrDataUrl(payload.refs.qr_png);
           if (payload.next?.always) {
             setDeepLink(payload.next.always);
           }
           if (payload.refs.websocket_status) {
-            subscribeToXamanPayload(
-              payload.refs.websocket_status,
-              (res) => {
-                if (res.signed && res.txid) {
-                  setTxHash(res.txid);
+            const ws = new WebSocket(payload.refs.websocket_status);
+            ws.onmessage = (event) => {
+              try {
+                const data = JSON.parse(event.data);
+                if (data.signed && data.txid) {
+                  setTxHash(data.txid);
                   setStep('complete');
-                  onSuccess(ipfsUri, res.txid);
+                  onSuccess(ipfsUri, data.txid);
+                  ws.close();
                 }
-              },
-              (err) => console.error('Xaman WS error:', err)
-            );
+              } catch (e) {
+                console.error(e);
+              }
+            };
           }
           return;
         }
-      } catch (err) {
-        console.warn('Xaman API failed, using client-side QR:', err);
       }
+    } catch (err) {
+      console.warn('Xaman PKCE signing payload fallback:', err);
     }
 
     // Fallback: Generate client-side QR of transaction payload & deep link
