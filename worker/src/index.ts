@@ -6,9 +6,6 @@ export interface Env {
 // Trusted domains allowed to use this relay
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://bigcjat.github.io',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:4173',
 ];
 
 function isOriginAllowed(origin: string | null, env: Env): boolean {
@@ -90,8 +87,8 @@ export default {
 
     // 3. Security: Origin Check on all write requests
     if (request.method === 'POST') {
-      // Must come from your GitHub Pages domain or local dev
-      if (origin && !isOriginAllowed(origin, env)) {
+      // Must come strictly from your GitHub Pages domain
+      if (!origin || !isOriginAllowed(origin, env)) {
         return new Response(
           JSON.stringify({ error: 'Forbidden: Unauthorized request origin.' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
