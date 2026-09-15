@@ -1,8 +1,8 @@
 import type { NFTMetadata } from '../types';
 
 export const DEFAULT_GATEWAYS = [
-  'https://nftedit.bigcjat.workers.dev/ipfs/',
   'https://gateway.pinata.cloud/ipfs/',
+  'https://nftedit.bigcjat.workers.dev/ipfs/',
 ];
 
 // In-memory cache by URI to prevent duplicate fetches
