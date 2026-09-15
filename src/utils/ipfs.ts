@@ -266,6 +266,115 @@ export async function uploadFileToPinata(
   };
 }
 
+export const DEFAULT_RELAY_URL = (import.meta.env.VITE_IPFS_RELAY_URL || '').replace(/\/+$/, '');
+
+/**
+ * Uploads JSON metadata via the Cloudflare Worker relay.
+ * Requires zero keys or accounts in the frontend.
+ */
+export async function uploadJSONViaRelay(
+  metadata: NFTMetadata,
+  relayUrl?: string
+): Promise<{ ipfsHash: string; uri: string }> {
+  const endpoint = (relayUrl || DEFAULT_RELAY_URL).replace(/\/+$/, '');
+  if (!endpoint) {
+    throw new Error('No IPFS relay URL configured. Please deploy the Cloudflare Worker or set VITE_IPFS_RELAY_URL.');
+  }
+
+  const resp = await fetch(`${endpoint}/upload-json`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(metadata),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Relay upload failed (${resp.status}): ${errText}`);
+  }
+
+  const data = await resp.json();
+  return {
+    ipfsHash: data.ipfsHash,
+    uri: data.uri || `ipfs://${data.ipfsHash}`,
+  };
+}
+
+/**
+ * Uploads a binary media file via the Cloudflare Worker relay.
+ */
+export async function uploadFileViaRelay(
+  file: File,
+  relayUrl?: string
+): Promise<{ ipfsHash: string; uri: string }> {
+  const endpoint = (relayUrl || DEFAULT_RELAY_URL).replace(/\/+$/, '');
+  if (!endpoint) {
+    throw new Error('No IPFS relay URL configured. Please deploy the Cloudflare Worker or set VITE_IPFS_RELAY_URL.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const resp = await fetch(`${endpoint}/upload-file`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Relay file upload failed (${resp.status}): ${errText}`);
+  }
+
+  const data = await resp.json();
+  return {
+    ipfsHash: data.ipfsHash,
+    uri: data.uri || `ipfs://${data.ipfsHash}`,
+  };
+}
+
+/**
+ * Smart JSON upload:
+ * Uses Cloudflare Worker relay if available (zero keys for artists!),
+ * otherwise falls back to personal Pinata JWT if configured.
+ */
+export async function uploadMetadataSmart(
+  metadata: NFTMetadata,
+  pinataJwt?: string,
+  relayUrl?: string
+): Promise<{ ipfsHash: string; uri: string }> {
+  const targetRelay = (relayUrl || DEFAULT_RELAY_URL).trim();
+  if (targetRelay) {
+    return await uploadJSONViaRelay(metadata, targetRelay);
+  }
+
+  if (pinataJwt?.trim()) {
+    return await uploadJSONToPinata(metadata, pinataJwt.trim(), metadata.name);
+  }
+
+  throw new Error('Please configure a Cloudflare Worker Relay URL or Pinata JWT in Settings to auto-upload to IPFS.');
+}
+
+/**
+ * Smart file upload:
+ * Uses Cloudflare Worker relay if available (zero keys for artists!),
+ * otherwise falls back to personal Pinata JWT if configured.
+ */
+export async function uploadFileSmart(
+  file: File,
+  pinataJwt?: string,
+  relayUrl?: string
+): Promise<{ ipfsHash: string; uri: string }> {
+  const targetRelay = (relayUrl || DEFAULT_RELAY_URL).trim();
+  if (targetRelay) {
+    return await uploadFileViaRelay(file, targetRelay);
+  }
+
+  if (pinataJwt?.trim()) {
+    return await uploadFileToPinata(file, pinataJwt.trim());
+  }
+
+  throw new Error('Please configure a Cloudflare Worker Relay URL or Pinata JWT in Settings to auto-upload image files to IPFS.');
+}
+
 /**
  * Helper to download JSON data to local device.
  */

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { PinataSettings, XamanSettings, XRPLNetwork } from '../types';
-import { Key, Shield, HardDrive, Globe, X, Check, ExternalLink, RefreshCw } from 'lucide-react';
+import { Key, Shield, HardDrive, Globe, X, Check, ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,9 +27,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [xamanSecret, setXamanSecret] = useState(xamanSettings.apiSecret);
   const [pinataJwt, setPinataJwt] = useState(pinataSettings.jwt);
   const [pinataGateway, setPinataGateway] = useState(pinataSettings.gateway);
+  const [relayUrl, setRelayUrl] = useState(pinataSettings.relayUrl || '');
   const [currentNet, setCurrentNet] = useState(network);
 
   const [pinataTestStatus, setPinataTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [relayTestStatus, setRelayTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [saveFeedback, setSaveFeedback] = useState(false);
 
   if (!isOpen) return null;
@@ -65,6 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onSavePinata({
       jwt: pinataJwt.trim(),
       gateway: pinataGateway.trim(),
+      relayUrl: relayUrl.trim(),
     });
     onChangeNetwork(currentNet);
 
@@ -73,6 +76,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setSaveFeedback(false);
       onClose();
     }, 600);
+  };
+
+  const handleTestRelay = async () => {
+    if (!relayUrl.trim()) {
+      alert('Please enter a Cloudflare Worker Relay URL first.');
+      return;
+    }
+    setRelayTestStatus('testing');
+    try {
+      const endpoint = relayUrl.trim().replace(/\/+$/, '');
+      const res = await fetch(`${endpoint}/health`);
+      if (res.ok) {
+        setRelayTestStatus('success');
+      } else {
+        setRelayTestStatus('failed');
+      }
+    } catch {
+      setRelayTestStatus('failed');
+    }
   };
 
   return (
@@ -267,10 +289,68 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
               Used to pin updated metadata JSON directly to IPFS from your browser when saving.
             </p>
+            {/* Cloudflare Worker IPFS Relay Section */}
+            <div style={{ marginBottom: '16px', padding: '14px', borderRadius: 'var(--radius-md)', background: 'rgba(0, 230, 203, 0.05)', border: '1px solid rgba(0, 230, 203, 0.25)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={15} /> Cloudflare Worker IPFS Relay (Recommended)
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--accent-cyan)', background: 'rgba(0, 230, 203, 0.12)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 600 }}>
+                  Zero Artist Login
+                </span>
+              </div>
+              <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: 1.4 }}>
+                Enables 1-click silent uploads for all artists using your deployed studio. Store your Pinata JWT safely in the worker secret instead of in the frontend.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="https://nftedit-ipfs-relay.<subdomain>.workers.dev"
+                  value={relayUrl}
+                  onChange={(e) => {
+                    setRelayUrl(e.target.value);
+                    setRelayTestStatus('idle');
+                  }}
+                  style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}
+                />
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={handleTestRelay}
+                    disabled={relayTestStatus === 'testing'}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <RefreshCw size={11} className={relayTestStatus === 'testing' ? 'animate-spin' : ''} />
+                    Test Relay Status
+                  </button>
+                  {relayTestStatus === 'success' && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Check size={13} /> Online & Ready!
+                    </span>
+                  )}
+                  {relayTestStatus === 'failed' && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent-rose)' }}>
+                      Could not reach relay endpoint.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-                  Pinata JWT (Bearer Token)
+                  Or Personal Pinata JWT (Optional Fallback)
                 </span>
                 <input
                   type="password"

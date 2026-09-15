@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { NFToken, NFTMetadata, PinataSettings, XamanSettings, XRPLNetwork } from '../types';
 import { utf8ToHex, buildNFTokenModifyTx } from '../utils/xrpl';
-import { uploadJSONToPinata, downloadJsonFile } from '../utils/ipfs';
+import { uploadMetadataSmart, downloadJsonFile } from '../utils/ipfs';
 import { generateClientQRCode, createXamanPayload, subscribeToXamanPayload } from '../utils/xaman';
 import { 
   X, 
@@ -13,7 +13,6 @@ import {
   Sparkles, 
   AlertCircle, 
   ArrowRight,
-  HardDrive,
   RefreshCw
 } from 'lucide-react';
 import { Client, Wallet } from 'xrpl';
@@ -69,22 +68,17 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
 
 
 
-  // Step 1: Upload to IPFS via Pinata Free Tier
-  const handleUploadToPinata = async () => {
-    if (!pinataSettings.jwt) {
-      setUploadError('Pinata JWT is missing. Please enter it in Settings or enter a CID manually below.');
-      return;
-    }
-
+  // Step 1: Upload to IPFS via Relay or Pinata
+  const handleSaveMetadata = async () => {
     setIsUploading(true);
     setUploadError(null);
 
     try {
-      const res = await uploadJSONToPinata(updatedMetadata, pinataSettings.jwt, updatedMetadata.name);
+      const res = await uploadMetadataSmart(updatedMetadata, pinataSettings.jwt, pinataSettings.relayUrl);
       setIpfsUri(res.uri);
       processNewUri(res.uri);
     } catch (err: any) {
-      setUploadError(err.message || 'Failed to upload JSON to Pinata');
+      setUploadError(err.message || 'Failed to upload JSON to IPFS');
     } finally {
       setIsUploading(false);
     }
@@ -293,61 +287,67 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
                 To modify this NFT's URI on the XRPL, the updated metadata JSON must be pinned to IPFS to obtain a Content Identifier (CID).
               </div>
 
-              {/* Pinata Option */}
+              {/* Primary 1-Click Upload Button */}
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid var(--border-subtle)',
+                  background: 'rgba(0, 230, 203, 0.04)',
+                  border: '1px solid rgba(0, 230, 203, 0.25)',
                   borderRadius: 'var(--radius-md)',
-                  padding: '16px',
+                  padding: '20px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '12px',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontWeight: 600, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <HardDrive size={16} /> Pinata IPFS Auto-Upload
+                  <span style={{ fontWeight: 600, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}>
+                    <Sparkles size={18} /> Automatic Decentralized Upload
                   </span>
-                  {pinataSettings.jwt ? (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <Check size={12} /> JWT Configured
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--accent-amber)' }}>
-                      JWT not set
-                    </span>
-                  )}
+                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', background: 'rgba(0, 230, 203, 0.12)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 600 }}>
+                    {pinataSettings.relayUrl ? 'Cloudflare Relay' : pinataSettings.jwt ? 'Pinata Cloud' : '1-Click Pin'}
+                  </span>
                 </div>
 
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Pins your clean JSON directly to your Pinata IPFS account in one click.
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Pins your clean updated metadata JSON to IPFS and prepares the XRPL modification transaction for Xaman signing.
                 </p>
 
                 <button
                   type="button"
-                  onClick={handleUploadToPinata}
+                  onClick={handleSaveMetadata}
                   disabled={isUploading}
                   style={{
-                    padding: '10px 16px',
+                    padding: '12px 20px',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--accent-cyan)',
                     color: '#060913',
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
+                    cursor: isUploading ? 'default' : 'pointer',
+                    boxShadow: '0 4px 16px rgba(0, 230, 203, 0.25)',
+                    border: 'none',
                   }}
                 >
-                  <Upload size={16} className={isUploading ? 'animate-spin' : ''} />
-                  {isUploading ? 'Pinning to IPFS...' : 'Upload JSON to Pinata'}
+                  {isUploading ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Pinning to IPFS & Preparing Transaction...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} />
+                      <span>Save & Proceed to Sign</span>
+                    </>
+                  )}
                 </button>
 
                 {uploadError && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--accent-rose)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <AlertCircle size={14} /> {uploadError}
+                  <div style={{ fontSize: '0.78rem', color: 'var(--accent-rose)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                    <AlertCircle size={15} /> {uploadError}
                   </div>
                 )}
               </div>

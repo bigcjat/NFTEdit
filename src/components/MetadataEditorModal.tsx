@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { NFToken, NFTMetadata, TraitAttribute, PinataSettings } from '../types';
 import { auditField, auditMetadata, sanitizeText } from '../utils/audit';
 import { ByteBadge } from './ByteBadge';
-import { downloadJsonFile, fetchIPFSMetadata, uploadFileToPinata } from '../utils/ipfs';
+import { downloadJsonFile, fetchIPFSMetadata, uploadFileSmart } from '../utils/ipfs';
 import { IPFSImage } from './IPFSImage';
 import { 
   X, 
@@ -176,11 +176,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
     setIsUploadingImage(true);
     setImageUploadError(null);
     try {
-      if (!pinataSettings?.jwt) {
-        throw new Error('Pinata JWT is required to upload images to IPFS. Please set your JWT in Settings, or enter an IPFS CID directly.');
-      }
-
-      const res = await uploadFileToPinata(targetFile, pinataSettings.jwt);
+      const res = await uploadFileSmart(targetFile, pinataSettings?.jwt, pinataSettings?.relayUrl);
       const resultUri = res.uri;
 
       if (metadata) {
@@ -191,7 +187,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
       setImageUploadSuccess(resultUri);
       return resultUri;
     } catch (err: any) {
-      const msg = err.message || 'Image upload to Pinata failed.';
+      const msg = err.message || 'Image upload to IPFS failed.';
       setImageUploadError(msg);
       return null;
     } finally {

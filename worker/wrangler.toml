@@ -1,0 +1,7 @@
+name = "nftedit-ipfs-relay"
+main = "src/index.ts"
+compatibility_date = "2024-09-01"
+
+# Set your secret via: wrangler secret put PINATA_JWT
+[vars]
+ENVIRONMENT = "production"

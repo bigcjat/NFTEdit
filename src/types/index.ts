@@ -72,6 +72,7 @@ export interface XamanSettings {
 export interface PinataSettings {
   jwt: string;
   gateway: string;
+  relayUrl?: string;
 }
 
 export interface ModifyPayload {
