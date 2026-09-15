@@ -9,13 +9,11 @@ import {
   Check, 
   Copy, 
   Smartphone, 
-  Key, 
   Sparkles, 
   AlertCircle, 
   ArrowRight,
   RefreshCw
 } from 'lucide-react';
-import { Client, Wallet } from 'xrpl';
 
 interface ModifyModalProps {
   isOpen: boolean;
@@ -37,7 +35,7 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
   userAccount,
   pinataSettings,
   xamanSettings: _xamanSettings,
-  network,
+  network: _network,
   onSuccess,
 }) => {
   const [step, setStep] = useState<'ipfs' | 'review' | 'sign' | 'complete'>('ipfs');
@@ -57,11 +55,7 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
   // Signing State
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [deepLink, setDeepLink] = useState<string>('');
-  const [signMethod, setSignMethod] = useState<'xaman' | 'secret'>('xaman');
-  const [secretKey, setSecretKey] = useState('');
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [txHash, setTxHash] = useState('');
-  const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [copiedTx, setCopiedTx] = useState(false);
 
 
@@ -150,53 +144,6 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
       setDeepLink(`https://xumm.app/sign?payload=${encodeURIComponent(JSON.stringify(txJson))}`);
     } catch (e) {
       console.error(e);
-    }
-  };
-
-  // Alternative: Direct Seed Signing with xrpl.js
-  const handleSignWithSecret = async () => {
-    if (!secretKey.trim()) {
-      setBroadcastError('Please enter the family seed / secret for the account.');
-      return;
-    }
-
-    setIsBroadcasting(true);
-    setBroadcastError(null);
-
-    const rpcServer = network === 'mainnet' ? 'https://s2.ripple.com:51234' : 'https://s.altnet.rippletest.net:51234';
-
-    try {
-      const client = new Client(rpcServer);
-      await client.connect();
-
-      const wallet = Wallet.fromSeed(secretKey.trim());
-      if (wallet.classicAddress !== (userAccount || nft.issuer)) {
-        throw new Error(
-          `Secret key corresponds to ${wallet.classicAddress}, but token issuer is ${userAccount || nft.issuer}`
-        );
-      }
-
-      const prepared = await client.autofill(txJson as any);
-      const signed = wallet.sign(prepared);
-      const response = await client.submitAndWait(signed.tx_blob);
-
-      await client.disconnect();
-
-      const meta = response.result.meta;
-      const txResult = typeof meta === 'object' && meta ? (meta as any).TransactionResult : '';
-
-      if (txResult === 'tesSUCCESS') {
-        const hash = response.result.hash;
-        setTxHash(hash);
-        setStep('complete');
-        onSuccess(ipfsUri, hash);
-      } else {
-        throw new Error(`Transaction failed on ledger with result: ${txResult}`);
-      }
-    } catch (err: any) {
-      setBroadcastError(err.message || 'Failed to submit transaction to XRPL');
-    } finally {
-      setIsBroadcasting(false);
     }
   };
 
@@ -560,151 +507,59 @@ export const ModifyModal: React.FC<ModifyModalProps> = ({
 
           {/* STEP 3: Signing */}
           {step === 'sign' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
-              
-              {/* Method Switcher */}
-              <div
-                style={{
-                  display: 'flex',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  borderRadius: 'var(--radius-full)',
-                  padding: '3px',
-                  border: '1px solid var(--border-subtle)',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setSignMethod('xaman')}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 'var(--radius-full)',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    background: signMethod === 'xaman' ? 'var(--accent-cyan-dim)' : 'transparent',
-                    color: signMethod === 'xaman' ? 'var(--accent-cyan)' : 'var(--text-muted)',
-                  }}
-                >
-                  Xaman QR / App
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSignMethod('secret')}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 'var(--radius-full)',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    background: signMethod === 'secret' ? 'var(--accent-purple-dim)' : 'transparent',
-                    color: signMethod === 'secret' ? 'var(--accent-purple)' : 'var(--text-muted)',
-                  }}
-                >
-                  Instant Seed Sign (Local/Test)
-                </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center', width: '100%' }}>
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                Scan with your <strong>Xaman (XUMM)</strong> app to sign the <code style={{ color: 'var(--accent-cyan)' }}>NFTokenModify</code> transaction:
               </div>
 
-              {signMethod === 'xaman' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', width: '100%' }}>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Scan with your <strong>Xaman (XUMM)</strong> app to sign the <code style={{ color: 'var(--accent-cyan)' }}>NFTokenModify</code> transaction:
-                  </div>
-
-                  {qrDataUrl ? (
-                    <div
-                      style={{
-                        padding: '12px',
-                        background: '#ffffff',
-                        borderRadius: 'var(--radius-md)',
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-                        display: 'inline-block',
-                      }}
-                    >
-                      <img src={qrDataUrl} alt="Xaman QR" style={{ width: '220px', height: '220px', display: 'block' }} />
-                    </div>
-                  ) : (
-                    <div style={{ padding: '40px', color: 'var(--text-muted)' }}>
-                      <RefreshCw size={24} className="animate-spin" />
-                    </div>
-                  )}
-
-                  {/* Mobile Deep Link */}
-                  {deepLink && (
-                    <a
-                      href={deepLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 20px',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'linear-gradient(135deg, #00e6cb 0%, #38bdf8 100%)',
-                        color: '#060913',
-                        fontWeight: 600,
-                        fontSize: '0.85rem',
-                        textDecoration: 'none',
-                        width: '100%',
-                        maxWidth: '280px',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Smartphone size={16} />
-                      Open in Xaman Mobile App
-                    </a>
-                  )}
-
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Waiting for signature from issuer account <code style={{ color: 'var(--text-primary)' }}>{userAccount || nft.issuer}</code>...
-                  </div>
+              {qrDataUrl ? (
+                <div
+                  style={{
+                    padding: '12px',
+                    background: '#ffffff',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+                    display: 'inline-block',
+                  }}
+                >
+                  <img src={qrDataUrl} alt="Xaman QR" style={{ width: '220px', height: '220px', display: 'block' }} />
                 </div>
               ) : (
-                /* Instant Seed Sign */
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    Sign and broadcast directly in-browser via <code style={{ color: 'var(--accent-purple)' }}>xrpl.js</code> (Client-side, your secret never leaves your device):
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                      Issuer Wallet Secret / Family Seed:
-                    </span>
-                    <input
-                      type="password"
-                      placeholder="s..."
-                      value={secretKey}
-                      onChange={(e) => setSecretKey(e.target.value)}
-                      style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
-                    />
-                  </div>
-
-                  {broadcastError && (
-                    <div style={{ fontSize: '0.78rem', color: 'var(--accent-rose)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <AlertCircle size={14} /> {broadcastError}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleSignWithSecret}
-                    disabled={isBroadcasting}
-                    style={{
-                      padding: '10px',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--accent-purple)',
-                      color: '#ffffff',
-                      fontWeight: 600,
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <Key size={16} />
-                    {isBroadcasting ? 'Broadcasting to XRPL...' : 'Sign & Submit to XRPL'}
-                  </button>
+                <div style={{ padding: '40px', color: 'var(--text-muted)' }}>
+                  <RefreshCw size={24} className="animate-spin" />
                 </div>
               )}
+
+              {/* Mobile Deep Link */}
+              {deepLink && (
+                <a
+                  href={deepLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '10px 20px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'linear-gradient(135deg, #00e6cb 0%, #38bdf8 100%)',
+                    color: '#060913',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    textDecoration: 'none',
+                    width: '100%',
+                    maxWidth: '280px',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Smartphone size={16} />
+                  Open in Xaman Mobile App
+                </a>
+              )}
+
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Waiting for signature from issuer account <code style={{ color: 'var(--text-primary)' }}>{userAccount || nft.issuer}</code>...
+              </div>
             </div>
           )}
 

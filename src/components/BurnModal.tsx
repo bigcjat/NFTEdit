@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { NFToken, NFTMetadata, XRPLNetwork } from '../types';
-import { buildNFTokenBurnTx, CLIO_ENDPOINTS } from '../utils/xrpl';
+import { buildNFTokenBurnTx } from '../utils/xrpl';
 import { generateClientQRCode, getXumm } from '../utils/xaman';
 import { IPFSImage } from './IPFSImage';
 import { 
@@ -9,12 +9,9 @@ import {
   AlertTriangle, 
   Check, 
   Copy, 
-  Smartphone, 
-  Key, 
   RefreshCw,
   ExternalLink
 } from 'lucide-react';
-import { Client, Wallet } from 'xrpl';
 
 interface BurnModalProps {
   isOpen: boolean;
@@ -32,7 +29,7 @@ export const BurnModal: React.FC<BurnModalProps> = ({
   nft,
   metadata,
   userAccount,
-  network,
+  network: _network,
   onSuccess,
 }) => {
   const [step, setStep] = useState<'confirm' | 'sign' | 'complete'>('confirm');
@@ -45,11 +42,7 @@ export const BurnModal: React.FC<BurnModalProps> = ({
   const [txJson, setTxJson] = useState<Record<string, any>>({});
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [deepLink, setDeepLink] = useState<string>('');
-  const [signMethod, setSignMethod] = useState<'xaman' | 'secret'>('xaman');
-  const [secretKey, setSecretKey] = useState('');
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [txHash, setTxHash] = useState('');
-  const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [copiedTx, setCopiedTx] = useState(false);
 
   // Reset state on open
@@ -61,7 +54,6 @@ export const BurnModal: React.FC<BurnModalProps> = ({
       setQrDataUrl('');
       setDeepLink('');
       setTxHash('');
-      setBroadcastError(null);
       const tx = buildNFTokenBurnTx(userAccount || nft.owner || nft.issuer, nft.nft_id, nft.owner);
       setTxJson(tx);
     }
@@ -114,50 +106,6 @@ export const BurnModal: React.FC<BurnModalProps> = ({
       setDeepLink(`https://xumm.app/sign?payload=${encodeURIComponent(JSON.stringify(txJson))}`);
     } catch (e) {
       console.error(e);
-    }
-  };
-
-  const handleSignWithSecret = async () => {
-    if (!secretKey.trim()) {
-      setBroadcastError('Please enter the family seed / secret for the account.');
-      return;
-    }
-
-    setIsBroadcasting(true);
-    setBroadcastError(null);
-
-    let client: Client | null = null;
-    try {
-      const endpoints = CLIO_ENDPOINTS[network];
-      client = new Client(endpoints[0]);
-      await client.connect();
-
-      const wallet = Wallet.fromSeed(secretKey.trim());
-      const prepared = await client.autofill(txJson as any);
-      const signed = wallet.sign(prepared);
-      const result = await client.submitAndWait(signed.tx_blob);
-
-      const meta = result.result.meta;
-      const engineResult = typeof meta === 'object' && meta !== null ? (meta as any).TransactionResult : '';
-
-      if (engineResult === 'tesSUCCESS') {
-        const hash = result.result.hash;
-        setTxHash(hash);
-        setStep('complete');
-        onSuccess(nft.nft_id, hash);
-      } else {
-        throw new Error(`XRPL Transaction failed with code: ${engineResult}`);
-      }
-    } catch (err: any) {
-      console.error('Burn transaction error:', err);
-      setBroadcastError(err.message || 'Failed to broadcast NFTokenBurn transaction.');
-    } finally {
-      setIsBroadcasting(false);
-      if (client) {
-        try {
-          await client.disconnect();
-        } catch (_) {}
-      }
     }
   };
 
@@ -417,190 +365,73 @@ export const BurnModal: React.FC<BurnModalProps> = ({
           )}
 
           {step === 'sign' && (
-            <>
-              {/* Method Switcher */}
-              <div
-                style={{
-                  display: 'flex',
-                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '3px',
-                  border: '1px solid var(--border-subtle)',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setSignMethod('xaman')}
-                  style={{
-                    flex: 1,
-                    padding: '8px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    backgroundColor: signMethod === 'xaman' ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-                    color: signMethod === 'xaman' ? '#f87171' : 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <Smartphone size={14} /> Xaman App
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSignMethod('secret')}
-                  style={{
-                    flex: 1,
-                    padding: '8px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    backgroundColor: signMethod === 'secret' ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-                    color: signMethod === 'secret' ? '#f87171' : 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <Key size={14} /> Seed / Secret Key
-                </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center', width: '100%' }}>
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                Scan with your <strong>Xaman (XUMM)</strong> app to sign the <code style={{ color: '#ef4444' }}>NFTokenBurn</code> transaction:
               </div>
 
-              {signMethod === 'xaman' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '10px 0' }}>
-                  {qrDataUrl ? (
-                    <div
-                      style={{
-                        padding: '12px',
-                        backgroundColor: '#ffffff',
-                        borderRadius: 'var(--radius-lg)',
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-                      }}
-                    >
-                      <img src={qrDataUrl} alt="Xaman QR" style={{ width: '220px', height: '220px', display: 'block' }} />
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        width: '220px',
-                        height: '220px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                        borderRadius: 'var(--radius-lg)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
-                    </div>
-                  )}
-
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Scan with Xaman Wallet
-                    </p>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Waiting for signature to execute NFTokenBurn on XRPL...
-                    </p>
-                  </div>
-
-                  {deepLink && (
-                    <a
-                      href={deepLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        color: '#f87171',
-                        fontSize: '0.82rem',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        textDecoration: 'none',
-                      }}
-                    >
-                      <ExternalLink size={14} /> Open in Xaman
-                    </a>
-                  )}
+              {qrDataUrl ? (
+                <div
+                  style={{
+                    padding: '12px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: 'var(--radius-lg)',
+                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+                  }}
+                >
+                  <img src={qrDataUrl} alt="Xaman QR" style={{ width: '220px', height: '220px', display: 'block' }} />
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Account Family Seed / Secret:
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="sEd..."
-                      value={secretKey}
-                      onChange={(e) => setSecretKey(e.target.value)}
-                      style={{
-                        padding: '10px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border-subtle)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.88rem',
-                        fontFamily: 'var(--font-mono)',
-                        outline: 'none',
-                      }}
-                    />
-                  </div>
-
-                  {broadcastError && (
-                    <div
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        color: '#f87171',
-                        fontSize: '0.8rem',
-                      }}
-                    >
-                      {broadcastError}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleSignWithSecret}
-                    disabled={isBroadcasting || !secretKey.trim()}
-                    style={{
-                      padding: '10px',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: isBroadcasting ? 'rgba(255, 255, 255, 0.08)' : '#ef4444',
-                      color: isBroadcasting ? 'var(--text-muted)' : '#ffffff',
-                      fontWeight: 600,
-                      fontSize: '0.88rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      cursor: isBroadcasting || !secretKey.trim() ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {isBroadcasting ? (
-                      <>
-                        <RefreshCw size={16} className="animate-spin" />
-                        <span>Broadcasting NFTokenBurn...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Flame size={16} />
-                        <span>Sign & Broadcast Burn</span>
-                      </>
-                    )}
-                  </button>
+                <div
+                  style={{
+                    width: '220px',
+                    height: '220px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: 'var(--radius-lg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
                 </div>
               )}
-            </>
+
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Scan with Xaman Wallet
+                </p>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Waiting for signature to execute NFTokenBurn on XRPL...
+                </p>
+              </div>
+
+              {deepLink && (
+                <a
+                  href={deepLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#f87171',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    textDecoration: 'none',
+                    width: '100%',
+                    maxWidth: '280px',
+                  }}
+                >
+                  <ExternalLink size={14} /> Open in Xaman
+                </a>
+              )}
+            </div>
           )}
 
           {step === 'complete' && (

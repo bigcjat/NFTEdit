@@ -2,12 +2,42 @@ import type { NFTMetadata } from '../types';
 
 export const DEFAULT_GATEWAYS = [
   'https://gateway.pinata.cloud/ipfs/',
+  'https://ipfs.filebase.io/ipfs/',
   'https://nftedit.bigcjat.workers.dev/ipfs/',
+  'https://4everland.io/ipfs/',
+  'https://dweb.link/ipfs/',
+  'https://w3s.link/ipfs/',
 ];
 
 // In-memory cache by URI to prevent duplicate fetches
 const metadataCache = new Map<string, NFTMetadata>();
 const inFlightRequests = new Map<string, Promise<NFTMetadata>>();
+
+// Concurrency queue to prevent blasting gateways with 50+ simultaneous requests (avoids 429 rate limits)
+const MAX_CONCURRENT_METADATA_FETCHES = 6;
+let activeMetadataFetches = 0;
+const metadataFetchQueue: (() => void)[] = [];
+
+function acquireMetadataFetchSlot(): Promise<void> {
+  if (activeMetadataFetches < MAX_CONCURRENT_METADATA_FETCHES) {
+    activeMetadataFetches++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    metadataFetchQueue.push(() => {
+      activeMetadataFetches++;
+      resolve();
+    });
+  });
+}
+
+function releaseMetadataFetchSlot(): void {
+  activeMetadataFetches--;
+  if (metadataFetchQueue.length > 0 && activeMetadataFetches < MAX_CONCURRENT_METADATA_FETCHES) {
+    const next = metadataFetchQueue.shift();
+    if (next) next();
+  }
+}
 
 /**
  * Clears the metadata cache (or a specific URI) so updated dynamic NFTs reload fresh.
@@ -102,34 +132,39 @@ export async function fetchIPFSMetadata(
     return inFlightRequests.get(uri)!;
   }
 
-  // 3. Initiate fetch promise across fast candidate gateways
+  // 3. Initiate fetch promise across fast candidate gateways with concurrency queue
   const fetchPromise = (async (): Promise<NFTMetadata> => {
-    let lastError: any = null;
-    const urls = getFallbackGatewayUrls(uri, customGateway);
+    await acquireMetadataFetchSlot();
+    try {
+      let lastError: any = null;
+      const urls = getFallbackGatewayUrls(uri, customGateway);
 
-    for (const url of urls) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4500);
+      for (const url of urls) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 4500);
 
-        const resp = await fetch(url, {
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        });
-        clearTimeout(timeoutId);
+          const resp = await fetch(url, {
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+          });
+          clearTimeout(timeoutId);
 
-        if (resp.ok) {
-          const text = await resp.text();
-          const parsed = JSON.parse(text);
-          metadataCache.set(uri, parsed);
-          return parsed;
+          if (resp.ok) {
+            const text = await resp.text();
+            const parsed = JSON.parse(text);
+            metadataCache.set(uri, parsed);
+            return parsed;
+          }
+        } catch (err) {
+          lastError = err;
         }
-      } catch (err) {
-        lastError = err;
       }
-    }
 
-    throw lastError || new Error(`Failed to load IPFS metadata from all fallback gateways for ${uri}`);
+      throw lastError || new Error(`Failed to load IPFS metadata from all fallback gateways for ${uri}`);
+    } finally {
+      releaseMetadataFetchSlot();
+    }
   })();
 
   inFlightRequests.set(uri, fetchPromise);
