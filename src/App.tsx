@@ -9,6 +9,7 @@ import { MetadataEditorModal } from './components/MetadataEditorModal';
 import { ModifyModal } from './components/ModifyModal';
 import { SettingsModal } from './components/SettingsModal';
 import { getXumm } from './utils/xaman';
+import { clearMetadataCache } from './utils/ipfs';
 import { RefreshCw, Smartphone } from 'lucide-react';
 
 export function App() {
@@ -425,9 +426,22 @@ export function App() {
           isOpen={!!modifyTarget}
           onClose={() => setModifyTarget(null)}
           userAccount={account}
-          onSuccess={async () => {
-            setModifyTarget(null);
-            await loadNFTs();
+          onSuccess={async (newUri: string) => {
+            clearMetadataCache();
+            if (modifyTarget) {
+              setNfts((prev) =>
+                prev.map((n) =>
+                  n.nft_id === modifyTarget.nft.nft_id
+                    ? {
+                        ...n,
+                        decodedUri: newUri,
+                        metadata: modifyTarget.updatedMetadata,
+                      }
+                    : n
+                )
+              );
+            }
+            setTimeout(loadNFTs, 3500);
           }}
           pinataSettings={pinataSettings}
           xamanSettings={{

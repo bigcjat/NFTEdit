@@ -48,13 +48,44 @@ export default {
           status: 'ok',
           service: 'XRPL Dynamic NFT IPFS Relay',
           hasPinataConfigured: !!env.PINATA_JWT,
-          version: '1.1.0-protected',
+          version: '1.2.0-gateway',
         }),
         {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
+    }
+
+    // 2b. IPFS Gateway Proxy (High-speed authenticated Pinata gateway for images & JSON)
+    if (request.method === 'GET' && url.pathname.startsWith('/ipfs/')) {
+      const ipfsPath = url.pathname.replace(/^\/ipfs\//, '');
+      if (!ipfsPath) {
+        return new Response('Missing IPFS path', { status: 400 });
+      }
+
+      const targetUrl = `https://gateway.pinata.cloud/ipfs/${ipfsPath}`;
+      try {
+        const resp = await fetch(targetUrl, {
+          headers: env.PINATA_JWT ? {
+            Authorization: `Bearer ${env.PINATA_JWT.trim()}`,
+          } : {},
+        });
+
+        const newHeaders = new Headers(resp.headers);
+        Object.entries(corsHeaders).forEach(([k, v]) => newHeaders.set(k, v));
+        newHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+
+        return new Response(resp.body, {
+          status: resp.status,
+          headers: newHeaders,
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message || 'Gateway fetch failed' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     // 3. Security: Origin Check on all write requests

@@ -1,13 +1,27 @@
 import type { NFTMetadata } from '../types';
 
 export const DEFAULT_GATEWAYS = [
-  'https://ipfs.filebase.io/ipfs/',
-  'https://quicknode.quicknode-ipfs.com/ipfs/',
+  'https://nftedit.bigcjat.workers.dev/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/',
+  'https://cloudflare-ipfs.com/ipfs/',
+  'https://dweb.link/ipfs/',
+  'https://ipfs.io/ipfs/',
 ];
 
-// In-memory cache to prevent duplicate fetches across component re-renders
+// In-memory cache by URI to prevent duplicate fetches
 const metadataCache = new Map<string, NFTMetadata>();
 const inFlightRequests = new Map<string, Promise<NFTMetadata>>();
+
+/**
+ * Clears the metadata cache (or a specific URI) so updated dynamic NFTs reload fresh.
+ */
+export function clearMetadataCache(uri?: string) {
+  if (uri) {
+    metadataCache.delete(uri);
+  } else {
+    metadataCache.clear();
+  }
+}
 
 /**
  * Robustly extracts the CID and optional file subpath from any IPFS URL or URI format.
@@ -70,101 +84,63 @@ export function resolveIPFSUrl(uri: string, gateway?: string): string {
 }
 
 /**
- * Fetches JSON metadata from IPFS with cascading fallback gateways, in-memory caching,
- * in-flight request deduplication, and an onXRP/Bidds indexer fallback.
- * 
- * Guarantees that the same URI / NFT is NEVER fetched twice.
+ * Fetches JSON metadata directly from the IPFS URI with cascading fallback gateways.
+ * Never uses third-party static indexers like Bidds so Dynamic NFTs always reflect live updates.
  */
 export async function fetchIPFSMetadata(
   uri?: string,
-  customGateway?: string,
-  nftId?: string
+  customGateway?: string
 ): Promise<NFTMetadata> {
-  if (!uri && !nftId) {
-    throw new Error('No URI or NFTokenID provided');
+  if (!uri) {
+    throw new Error('No URI provided');
   }
 
-  // 1. Check in-memory cache (by URI or by NFTokenID)
-  if (uri && metadataCache.has(uri)) {
+  // 1. Check in-memory cache (strictly by URI)
+  if (metadataCache.has(uri)) {
     return metadataCache.get(uri)!;
   }
-  if (nftId && metadataCache.has(nftId)) {
-    return metadataCache.get(nftId)!;
+
+  // 2. Check if a request for this URI is already in-flight (deduplication)
+  if (inFlightRequests.has(uri)) {
+    return inFlightRequests.get(uri)!;
   }
 
-  // 2. Check if a request for this URI or NFT is already in-flight (deduplication)
-  const dedupKey = uri || nftId || '';
-  if (inFlightRequests.has(dedupKey)) {
-    return inFlightRequests.get(dedupKey)!;
-  }
-
-  // 3. Initiate fetch promise and store in inFlightRequests
+  // 3. Initiate fetch promise across fast candidate gateways
   const fetchPromise = (async (): Promise<NFTMetadata> => {
     let lastError: any = null;
+    const urls = getFallbackGatewayUrls(uri, customGateway);
 
-    // Direct IPFS resolution via verified live gateways
-    if (uri) {
-      const urls = getFallbackGatewayUrls(uri, customGateway);
-      for (const url of urls) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-          const resp = await fetch(url, {
-            signal: controller.signal,
-            headers: { Accept: 'application/json' },
-          });
-          clearTimeout(timeoutId);
-
-          if (resp.ok) {
-            const text = await resp.text();
-            const parsed = JSON.parse(text);
-            if (uri) metadataCache.set(uri, parsed);
-            if (nftId) metadataCache.set(nftId, parsed);
-            return parsed;
-          }
-        } catch (err) {
-          lastError = err;
-        }
-      }
-    }
-
-    // Secondary fallback: onXRP / Bidds metadata indexer API (cached snapshot)
-    if (nftId) {
+    for (const url of urls) {
       try {
-        const biddsUrl = `https://api.bidds.com/api/metadata/${nftId}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 4500);
 
-        const resp = await fetch(biddsUrl, {
+        const resp = await fetch(url, {
           signal: controller.signal,
           headers: { Accept: 'application/json' },
         });
         clearTimeout(timeoutId);
 
         if (resp.ok) {
-          const parsed = await resp.json();
-          if (parsed && typeof parsed === 'object' && (parsed.name || parsed.image || parsed.attributes)) {
-            if (uri) metadataCache.set(uri, parsed);
-            if (nftId) metadataCache.set(nftId, parsed);
-            return parsed;
-          }
+          const text = await resp.text();
+          const parsed = JSON.parse(text);
+          metadataCache.set(uri, parsed);
+          return parsed;
         }
-      } catch (biddsErr) {
-        console.warn('Bidds fallback metadata fetch failed:', biddsErr);
+      } catch (err) {
+        lastError = err;
       }
     }
 
-    throw lastError || new Error(`Failed to load IPFS metadata from all fallback gateways for ${uri || nftId}`);
+    throw lastError || new Error(`Failed to load IPFS metadata from all fallback gateways for ${uri}`);
   })();
 
-  inFlightRequests.set(dedupKey, fetchPromise);
+  inFlightRequests.set(uri, fetchPromise);
 
   try {
-    const result = await fetchPromise;
-    return result;
+    return await fetchPromise;
   } finally {
-    inFlightRequests.delete(dedupKey);
+    inFlightRequests.delete(uri);
   }
 }
 

@@ -22,16 +22,14 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
-  // Sync if parent updates nft.metadata
+  // Sync if parent updates nft.metadata or decodedUri
   useEffect(() => {
-    if (nft.metadata) {
-      setLocalMetadata(nft.metadata);
-    }
-  }, [nft.metadata]);
+    setLocalMetadata(nft.metadata || null);
+  }, [nft.metadata, nft.decodedUri]);
 
   // Lazy-load metadata when card scrolls into viewport
   useEffect(() => {
-    if (localMetadata || !cardRef.current || (!nft.decodedUri && !nft.nft_id)) {
+    if (localMetadata || !cardRef.current || !nft.decodedUri) {
       return;
     }
 
@@ -56,7 +54,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           }
 
           setIsLoadingMetadata(true);
-          fetchIPFSMetadata(nft.decodedUri, customGateway, nft.nft_id)
+          fetchIPFSMetadata(nft.decodedUri, customGateway)
             .then((fetched) => {
               setLocalMetadata(fetched);
               onMetadataLoaded?.(nft.nft_id, fetched);
