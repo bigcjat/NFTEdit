@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { NFToken, NFTMetadata } from '../types';
 import { IPFSImage } from './IPFSImage';
 import { fetchIPFSMetadata } from '../utils/ipfs';
-import { Sparkles, Lock, Copy, Check, RefreshCw } from 'lucide-react';
+import { Sparkles, Lock, Copy, Check, RefreshCw, Flame } from 'lucide-react';
 
 interface NFTCardProps {
   nft: NFToken;
   onSelect: (nft: NFToken) => void;
   customGateway?: string;
   onMetadataLoaded?: (nftId: string, metadata: NFTMetadata) => void;
+  onBurn?: (nft: NFToken) => void;
 }
 
 export const NFTCard: React.FC<NFTCardProps> = ({
@@ -16,6 +17,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   onSelect,
   customGateway,
   onMetadataLoaded,
+  onBurn,
 }) => {
   const [copied, setCopied] = useState(false);
   const [localMetadata, setLocalMetadata] = useState<NFTMetadata | null>(nft.metadata || null);
@@ -204,24 +206,68 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           )}
         </div>
 
-        {/* Serial Badge */}
+        {/* Serial Badge & Quick Burn Button */}
         <div
           style={{
             position: 'absolute',
             top: '10px',
             right: '10px',
-            padding: '3px 8px',
-            borderRadius: 'var(--radius-full)',
-            backgroundColor: 'rgba(6, 9, 19, 0.85)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '0.7rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
             zIndex: 2,
           }}
         >
-          #{nft.nft_serial}
+          <div
+            style={{
+              padding: '3px 8px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'rgba(6, 9, 19, 0.85)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-secondary)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.7rem',
+            }}
+          >
+            #{nft.nft_serial}
+          </div>
+          {onBurn && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onBurn(nft);
+              }}
+              title="Burn NFToken (Irreversible - permanently destroy on XRPL)"
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(6, 9, 19, 0.85)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: '#f87171',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.3)';
+                e.currentTarget.style.borderColor = '#ef4444';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(6, 9, 19, 0.85)';
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              <Flame size={12} />
+            </button>
+          )}
         </div>
       </div>
 

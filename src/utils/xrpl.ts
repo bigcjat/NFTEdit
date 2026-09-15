@@ -268,6 +268,27 @@ export function buildNFTokenModifyTx(
 }
 
 /**
+ * Builds the unsigned NFTokenBurn transaction object.
+ */
+export function buildNFTokenBurnTx(
+  account: string,
+  nftId: string,
+  owner?: string
+) {
+  const tx: Record<string, any> = {
+    TransactionType: 'NFTokenBurn',
+    Account: account,
+    NFTokenID: nftId,
+  };
+
+  if (owner && owner !== account) {
+    tx.Owner = owner;
+  }
+
+  return tx;
+}
+
+/**
  * Test tokens from the Footwork by MuseForge collection (Taxon 3668)
  * for testing dynamic NFT modifications on Taxon 4.
  */

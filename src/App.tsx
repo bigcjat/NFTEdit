@@ -7,6 +7,7 @@ import { TaxonSelector } from './components/TaxonSelector';
 import { NFTCard } from './components/NFTCard';
 import { MetadataEditorModal } from './components/MetadataEditorModal';
 import { ModifyModal } from './components/ModifyModal';
+import { BurnModal } from './components/BurnModal';
 import { SettingsModal } from './components/SettingsModal';
 import { getXumm } from './utils/xaman';
 import { clearMetadataCache } from './utils/ipfs';
@@ -49,6 +50,7 @@ export function App() {
   // Active Modals
   const [selectedNFT, setSelectedNFT] = useState<NFToken | null>(null);
   const [modifyTarget, setModifyTarget] = useState<{ nft: NFToken; updatedMetadata: NFTMetadata } | null>(null);
+  const [burnTarget, setBurnTarget] = useState<NFToken | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
   // Initialize Xaman PKCE authentication
@@ -347,6 +349,7 @@ export function App() {
                     key={nft.nft_id}
                     nft={nft}
                     onSelect={(selected: NFToken) => setSelectedNFT(selected)}
+                    onBurn={(target: NFToken) => setBurnTarget(target)}
                     customGateway={pinataSettings.gateway}
                   />
                 ))}
@@ -415,6 +418,28 @@ export function App() {
           }}
           customGateway={pinataSettings.gateway}
           pinataSettings={pinataSettings}
+          onOpenBurnModal={() => {
+            setBurnTarget(selectedNFT);
+            setSelectedNFT(null);
+          }}
+        />
+      )}
+
+      {/* Burn Modal (Irreversible Token Destruction) */}
+      {burnTarget && (
+        <BurnModal
+          nft={burnTarget}
+          metadata={burnTarget.metadata}
+          isOpen={!!burnTarget}
+          onClose={() => setBurnTarget(null)}
+          userAccount={account}
+          network={network}
+          onSuccess={(burnedNftId: string) => {
+            clearMetadataCache();
+            setNfts((prev) => prev.filter((n) => n.nft_id !== burnedNftId));
+            setBurnTarget(null);
+            setTimeout(loadNFTs, 4000);
+          }}
         />
       )}
 

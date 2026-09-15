@@ -19,7 +19,8 @@ import {
   ArrowRight,
   Info,
   RefreshCw,
-  Upload
+  Upload,
+  Flame
 } from 'lucide-react';
 
 
@@ -107,6 +108,7 @@ interface MetadataEditorModalProps {
   customGateway?: string;
   onMetadataLoaded?: (nftId: string, metadata: NFTMetadata) => void;
   pinataSettings?: PinataSettings;
+  onOpenBurnModal?: () => void;
 }
 
 export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
@@ -117,6 +119,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   customGateway,
   onMetadataLoaded,
   pinataSettings,
+  onOpenBurnModal,
 }) => {
   // Local editable metadata state: NEVER use fake mock data. Either real metadata or null!
   const initialMetadata: NFTMetadata | null = useMemo(() => {
@@ -1534,6 +1537,29 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                 }}
               >
                 <Download size={14} /> Download JSON
+              </button>
+            )}
+
+            {onOpenBurnModal && (
+              <button
+                type="button"
+                onClick={onOpenBurnModal}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                }}
+                title="Permanently burn this token on the XRP Ledger (Irreversible)"
+              >
+                <Flame size={14} /> Burn Token
               </button>
             )}
           </div>
