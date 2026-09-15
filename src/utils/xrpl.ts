@@ -2,11 +2,11 @@ import type { NFToken, XRPLNetwork } from '../types';
 
 export const RPC_ENDPOINTS: Record<XRPLNetwork, string[]> = {
   mainnet: [
-    'https://s1.ripple.com:51234',
-    'https://s2.ripple.com:51234',
+    'https://xrplcluster.com',
+    'https://xrpl.ws',
   ],
   testnet: [
-    'https://s.altnet.rippletest.net:51234',
+    'https://testnet.xrpl-labs.com',
   ],
 };
 
