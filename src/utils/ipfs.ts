@@ -325,7 +325,9 @@ export async function uploadFileToPinata(
   };
 }
 
-export const DEFAULT_RELAY_URL = (import.meta.env.VITE_IPFS_RELAY_URL || '').replace(/\/+$/, '');
+export const DEFAULT_RELAY_URL = (
+  import.meta.env.VITE_IPFS_RELAY_URL || 'https://nftedit.bigcjat.workers.dev'
+).replace(/\/+$/, '');
 
 /**
  * Uploads JSON metadata via the Cloudflare Worker relay.
