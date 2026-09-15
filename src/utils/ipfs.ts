@@ -170,7 +170,7 @@ export async function fetchIPFSMetadata(
 
 
 /**
- * Uploads JSON metadata to IPFS via Pinata.
+ * Uploads JSON metadata to IPFS via Pinata (supports both V3 scoped keys and V1 legacy keys).
  */
 export async function uploadJSONToPinata(
   metadata: NFTMetadata,
@@ -181,6 +181,38 @@ export async function uploadJSONToPinata(
     throw new Error('Pinata JWT is required. Please set it in Settings.');
   }
 
+  // 1. Try Pinata V3 Files endpoint (compatible with modern scoped keys)
+  try {
+    const fileName = `${tokenName || metadata.name || 'metadata'}.json`;
+    const jsonBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: 'application/json' });
+    const form = new FormData();
+    form.append('file', jsonBlob, fileName);
+    form.append('name', fileName);
+    form.append('network', 'public');
+
+    const v3Resp = await fetch('https://uploads.pinata.cloud/v3/files', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pinataJwt.trim()}`,
+      },
+      body: form,
+    });
+
+    if (v3Resp.ok) {
+      const v3Data: any = await v3Resp.json();
+      const cid = v3Data.data?.cid || v3Data.cid || v3Data.IpfsHash;
+      if (cid) {
+        return {
+          ipfsHash: cid,
+          uri: `ipfs://${cid}`,
+        };
+      }
+    }
+  } catch (v3Err) {
+    console.warn('Pinata V3 upload attempt failed, falling back to V1:', v3Err);
+  }
+
+  // 2. Fallback to Legacy Pinata V1 endpoint
   const payload = {
     pinataOptions: {
       cidVersion: 1,
@@ -210,7 +242,7 @@ export async function uploadJSONToPinata(
   }
 
   const data = await resp.json();
-  const ipfsHash = data.IpfsHash;
+  const ipfsHash = data.IpfsHash || data.cid;
   return {
     ipfsHash,
     uri: `ipfs://${ipfsHash}`,
@@ -218,7 +250,7 @@ export async function uploadJSONToPinata(
 }
 
 /**
- * Uploads a binary media file (image/video) to IPFS via Pinata.
+ * Uploads a binary media file (image/video) to IPFS via Pinata (supports V3 and V1).
  */
 export async function uploadFileToPinata(
   file: File,
@@ -228,22 +260,49 @@ export async function uploadFileToPinata(
     throw new Error('Pinata JWT is required. Please set it in Settings.');
   }
 
+  // 1. Try Pinata V3 Files endpoint
+  try {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('name', file.name);
+    form.append('network', 'public');
+
+    const v3Resp = await fetch('https://uploads.pinata.cloud/v3/files', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pinataJwt.trim()}`,
+      },
+      body: form,
+    });
+
+    if (v3Resp.ok) {
+      const v3Data: any = await v3Resp.json();
+      const cid = v3Data.data?.cid || v3Data.cid || v3Data.IpfsHash;
+      if (cid) {
+        return {
+          ipfsHash: cid,
+          uri: `ipfs://${cid}`,
+        };
+      }
+    }
+  } catch (v3Err) {
+    console.warn('Pinata V3 file upload failed, falling back to V1:', v3Err);
+  }
+
+  // 2. Fallback to Legacy Pinata V1 endpoint
   const formData = new FormData();
   formData.append('file', file);
-
-  const metadata = JSON.stringify({
-    name: file.name,
-    keyvalues: {
-      platform: 'XRPL-DynamicNFT-Editor',
-      timestamp: new Date().toISOString(),
-    },
-  });
-  formData.append('pinataMetadata', metadata);
-
-  const options = JSON.stringify({
-    cidVersion: 1,
-  });
-  formData.append('pinataOptions', options);
+  formData.append(
+    'pinataMetadata',
+    JSON.stringify({
+      name: file.name,
+      keyvalues: {
+        platform: 'XRPL-DynamicNFT-Editor',
+        timestamp: new Date().toISOString(),
+      },
+    })
+  );
+  formData.append('pinataOptions', JSON.stringify({ cidVersion: 1 }));
 
   const resp = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
     method: 'POST',
@@ -259,7 +318,7 @@ export async function uploadFileToPinata(
   }
 
   const data = await resp.json();
-  const ipfsHash = data.IpfsHash;
+  const ipfsHash = data.IpfsHash || data.cid;
   return {
     ipfsHash,
     uri: `ipfs://${ipfsHash}`,

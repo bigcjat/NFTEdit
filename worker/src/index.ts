@@ -60,10 +60,49 @@ export default {
         }
 
         const tokenName = body.name || 'NFT Metadata';
+        const fileName = `${tokenName.substring(0, 40)}.json`;
+
+        // 1a. Try Pinata V3 Files endpoint
+        try {
+          const jsonBlob = new Blob([JSON.stringify(body, null, 2)], { type: 'application/json' });
+          const v3Form = new FormData();
+          v3Form.append('file', jsonBlob, fileName);
+          v3Form.append('name', fileName);
+          v3Form.append('network', 'public');
+
+          const v3Resp = await fetch('https://uploads.pinata.cloud/v3/files', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${env.PINATA_JWT.trim()}`,
+            },
+            body: v3Form,
+          });
+
+          if (v3Resp.ok) {
+            const v3Data: any = await v3Resp.json();
+            const cid = v3Data.data?.cid || v3Data.cid || v3Data.IpfsHash;
+            if (cid) {
+              return new Response(
+                JSON.stringify({
+                  ipfsHash: cid,
+                  uri: `ipfs://${cid}`,
+                }),
+                {
+                  status: 200,
+                  headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+                }
+              );
+            }
+          }
+        } catch (v3Err) {
+          console.warn('Worker: Pinata V3 upload failed, trying V1 fallback:', v3Err);
+        }
+
+        // 1b. Fallback to Legacy Pinata V1 endpoint
         const pinataPayload = {
           pinataContent: body,
           pinataMetadata: {
-            name: `${tokenName.substring(0, 40)}.json`,
+            name: fileName,
             keyvalues: {
               platform: 'XRPL-DynamicNFT-Editor',
               timestamp: new Date().toISOString(),
@@ -92,7 +131,7 @@ export default {
         }
 
         const pinataData: any = await pinataResp.json();
-        const ipfsHash = pinataData.IpfsHash;
+        const ipfsHash = pinataData.IpfsHash || pinataData.cid;
 
         return new Response(
           JSON.stringify({
@@ -123,7 +162,6 @@ export default {
           );
         }
 
-        // Forward multipart data directly to Pinata
         const formData = await request.formData();
         const file = formData.get('file');
         if (!file || !(file instanceof File)) {
@@ -141,6 +179,42 @@ export default {
           );
         }
 
+        // 2a. Try Pinata V3 Files endpoint
+        try {
+          const v3Form = new FormData();
+          v3Form.append('file', file, file.name);
+          v3Form.append('name', file.name);
+          v3Form.append('network', 'public');
+
+          const v3Resp = await fetch('https://uploads.pinata.cloud/v3/files', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${env.PINATA_JWT.trim()}`,
+            },
+            body: v3Form,
+          });
+
+          if (v3Resp.ok) {
+            const v3Data: any = await v3Resp.json();
+            const cid = v3Data.data?.cid || v3Data.cid || v3Data.IpfsHash;
+            if (cid) {
+              return new Response(
+                JSON.stringify({
+                  ipfsHash: cid,
+                  uri: `ipfs://${cid}`,
+                }),
+                {
+                  status: 200,
+                  headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+                }
+              );
+            }
+          }
+        } catch (v3Err) {
+          console.warn('Worker: Pinata V3 file upload failed, trying V1 fallback:', v3Err);
+        }
+
+        // 2b. Fallback to Legacy Pinata V1 endpoint
         const forwardFormData = new FormData();
         forwardFormData.append('file', file);
         forwardFormData.append(
@@ -172,7 +246,7 @@ export default {
         }
 
         const pinataData: any = await pinataResp.json();
-        const ipfsHash = pinataData.IpfsHash;
+        const ipfsHash = pinataData.IpfsHash || pinataData.cid;
 
         return new Response(
           JSON.stringify({
