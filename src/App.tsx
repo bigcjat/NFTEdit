@@ -4,6 +4,7 @@ import type { NFToken, NFTMetadata, PinataSettings, XRPLNetwork } from './types'
 import { fetchAccountNFTs } from './utils/xrpl';
 import { Navbar } from './components/Navbar';
 import { TaxonSelector } from './components/TaxonSelector';
+import { DirectNFTLookup } from './components/DirectNFTLookup';
 import { NFTCard } from './components/NFTCard';
 import { MetadataEditorModal } from './components/MetadataEditorModal';
 import { ModifyModal } from './components/ModifyModal';
@@ -275,6 +276,14 @@ export function App() {
         ) : (
           /* Authenticated Artist Dashboard */
           <>
+            {/* Direct NFTokenID Quick Jump / Edit */}
+            <DirectNFTLookup
+              userAccount={account}
+              nfts={nfts}
+              network={network}
+              onSelectNFT={(nft) => setSelectedNFT(nft)}
+            />
+
             {/* Taxon / Collection Selector */}
             <TaxonSelector
               nfts={nfts}

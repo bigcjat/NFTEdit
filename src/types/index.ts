@@ -41,6 +41,7 @@ export interface NFToken {
   isMutable: boolean; // (flags & 0x0010) !== 0
   isTransferable: boolean; // (flags & 0x0008) !== 0
   isBurnable: boolean; // (flags & 0x0001) !== 0
+  is_burned?: boolean;
   metadata?: NFTMetadata | null;
   metadataLoading?: boolean;
   metadataError?: string | null;
