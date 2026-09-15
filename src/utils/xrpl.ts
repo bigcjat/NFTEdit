@@ -121,45 +121,10 @@ async function callXRPLRPC(method: string, params: any[], network: XRPLNetwork =
 }
 
 /**
- * Fetches all NFTs minted by an account.
- * First queries the XRPL Data API for all tokens minted by this issuer (including tokens now held by collectors).
- * Falls back to querying Ripple's Clio node (account_nfts filtered to Issuer === account).
+ * Fetches all NFTs held/minted by an account directly from the official XRPL nodes.
+ * Does NOT use any 3rd-party indexers or APIs.
  */
 export async function fetchAccountNFTs(account: string, network: XRPLNetwork = 'mainnet'): Promise<NFToken[]> {
-  // 1. On mainnet, attempt to query all tokens minted by this issuer
-  if (network === 'mainnet') {
-    try {
-      const resp = await fetch(`https://api.xrpldata.com/api/v1/xls20-nfts/issuer/${account}`);
-      if (resp.ok) {
-        const json = await resp.json();
-        const nfts = json?.data?.nfts || [];
-        if (nfts.length > 0) {
-          return nfts.map((item: any) => {
-            const parsed = parseNFTokenID(item.NFTokenID);
-            const decodedUri = item.URI ? hexToUtf8(item.URI) : '';
-            return {
-              nft_id: item.NFTokenID,
-              issuer: item.Issuer,
-              owner: item.Owner,
-              nft_taxon: item.Taxon !== undefined ? item.Taxon : item.NFTokenTaxon,
-              nft_serial: item.Sequence !== undefined ? item.Sequence : item.nft_serial,
-              transfer_fee: item.TransferFee || 0,
-              flags: item.Flags || 0,
-              uri: item.URI,
-              decodedUri,
-              isMutable: parsed ? parsed.isMutable : ((item.Flags || 0) & 0x0010) !== 0,
-              isTransferable: parsed ? parsed.isTransferable : ((item.Flags || 0) & 0x0008) !== 0,
-              isBurnable: parsed ? parsed.isBurnable : ((item.Flags || 0) & 0x0001) !== 0,
-            };
-          });
-        }
-      }
-    } catch (err) {
-      console.warn('xrpldata issuer query failed, falling back to Clio node:', err);
-    }
-  }
-
-  // 2. Direct Clio node query (s1/s2.ripple.com) with strict Issuer filter
   const allNfts: NFToken[] = [];
   let marker: any = undefined;
 
@@ -177,8 +142,9 @@ export async function fetchAccountNFTs(account: string, network: XRPLNetwork = '
     const nfts = result.account_nfts || [];
 
     for (const item of nfts) {
-      // STRICT FILTER: Only include NFTs that were minted by this account!
-      if (item.Issuer !== account) {
+      // On XRPL, if the account querying is the issuer, item.Issuer is omitted
+      const tokenIssuer = item.Issuer || account;
+      if (tokenIssuer !== account) {
         continue;
       }
 
@@ -187,7 +153,7 @@ export async function fetchAccountNFTs(account: string, network: XRPLNetwork = '
       
       allNfts.push({
         nft_id: item.NFTokenID,
-        issuer: item.Issuer,
+        issuer: tokenIssuer,
         owner: account,
         nft_taxon: item.NFTokenTaxon,
         nft_serial: item.nft_serial,

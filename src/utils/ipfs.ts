@@ -3,9 +3,6 @@ import type { NFTMetadata } from '../types';
 export const DEFAULT_GATEWAYS = [
   'https://nftedit.bigcjat.workers.dev/ipfs/',
   'https://gateway.pinata.cloud/ipfs/',
-  'https://cloudflare-ipfs.com/ipfs/',
-  'https://dweb.link/ipfs/',
-  'https://ipfs.io/ipfs/',
 ];
 
 // In-memory cache by URI to prevent duplicate fetches
