@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import './App.css';
-import type { NFToken, NFTMetadata, PinataSettings, XamanSettings, XRPLNetwork } from './types';
+import type { NFToken, NFTMetadata, PinataSettings, XRPLNetwork } from './types';
 import { fetchAccountNFTs } from './utils/xrpl';
 import { fetchIPFSMetadata } from './utils/ipfs';
 import { Navbar } from './components/Navbar';
@@ -9,68 +9,103 @@ import { NFTCard } from './components/NFTCard';
 import { MetadataEditorModal } from './components/MetadataEditorModal';
 import { ModifyModal } from './components/ModifyModal';
 import { SettingsModal } from './components/SettingsModal';
-import { XamanLoginModal } from './components/XamanLoginModal';
-import { RefreshCw, Smartphone, Palette, ArrowRight } from 'lucide-react';
+import { createXamanSignInPayload, subscribeToXamanPayload } from './utils/xaman';
+import { RefreshCw, Smartphone } from 'lucide-react';
 
 export function App() {
-  // Account & Network (starts empty or loads from localStorage)
+  // Purge any stale demo account from previous sessions
+  useEffect(() => {
+    localStorage.removeItem('xrpl_user_account');
+    localStorage.removeItem('xrpl_xaman_settings');
+  }, []);
+
+  // Account state: only set by active Xaman sign-in
   const [account, setAccount] = useState<string>(() => {
-    return localStorage.getItem('xrpl_user_account') || '';
+    return sessionStorage.getItem('xrpl_active_account') || '';
   });
-  const [network, setNetwork] = useState<XRPLNetwork>(() => {
-    return (localStorage.getItem('xrpl_network') as XRPLNetwork) || 'mainnet';
-  });
+  
+  const [network, setNetwork] = useState<XRPLNetwork>('mainnet');
 
-  // Settings
-  const [xamanSettings, setXamanSettings] = useState<XamanSettings>(() => {
-    const saved = localStorage.getItem('xrpl_xaman_settings');
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    return { apiKey: '16c555db-35ce-4b84-a656-53b2ec76b5bc', apiSecret: '78e21880-3040-4972-9bb7-3a9e06a0ac35', userAddress: '', isConnected: false };
-  });
-
+  // Optional Pinata settings for IPFS
   const [pinataSettings, setPinataSettings] = useState<PinataSettings>(() => {
     const saved = localStorage.getItem('xrpl_pinata_settings');
     return saved ? JSON.parse(saved) : { jwt: '', gateway: 'https://gateway.pinata.cloud/ipfs/' };
   });
 
+  // Login QR State (directly on landing page)
+  const [loginQrUrl, setLoginQrUrl] = useState<string>('');
+  const [loginDeepLink, setLoginDeepLink] = useState<string>('');
+  const [isLoginLoading, setIsLoginLoading] = useState<boolean>(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   // NFT State
   const [nfts, setNfts] = useState<NFToken[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoadingNFTs, setIsLoadingNFTs] = useState<boolean>(false);
+  const [nftLoadError, setNftLoadError] = useState<string | null>(null);
 
   // Filters
   const [selectedTaxon, setSelectedTaxon] = useState<number | 'all'>('all');
   const [mutableOnly, setMutableOnly] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Modals
+  // Active Modals
   const [selectedNFT, setSelectedNFT] = useState<NFToken | null>(null);
   const [modifyTarget, setModifyTarget] = useState<{ nft: NFToken; updatedMetadata: NFTMetadata } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
 
-  // Direct address input for landing
-  const [landingAddress, setLandingAddress] = useState('');
-
-  // Persist account
+  // Initialize Xaman Sign-In on landing page if not logged in
   useEffect(() => {
-    if (account) {
-      localStorage.setItem('xrpl_user_account', account);
-    } else {
-      localStorage.removeItem('xrpl_user_account');
+    if (account) return;
+
+    let unsubscribe: (() => void) | null = null;
+    setIsLoginLoading(true);
+    setLoginError(null);
+
+    async function initXaman() {
+      try {
+        const payload = await createXamanSignInPayload();
+        if (payload?.refs?.qr_png) {
+          setLoginQrUrl(payload.refs.qr_png);
+          if (payload.next?.always) {
+            setLoginDeepLink(payload.next.always);
+          }
+          if (payload.refs.websocket_status) {
+            unsubscribe = subscribeToXamanPayload(
+              payload.refs.websocket_status,
+              (data) => {
+                if (data.signed && data.account) {
+                  setAccount(data.account);
+                  sessionStorage.setItem('xrpl_active_account', data.account);
+                }
+              },
+              (err) => console.error('Xaman WebSocket error:', err)
+            );
+          }
+        } else {
+          setLoginError('Could not generate Xaman sign-in payload. Please check network connection.');
+        }
+      } catch (err: any) {
+        setLoginError(err.message || 'Error connecting to Xaman');
+      } finally {
+        setIsLoginLoading(false);
+      }
     }
+
+    initXaman();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [account]);
 
-  // Fetch NFTs for account
+  // Load NFTs once account is authenticated
   const loadNFTs = useCallback(async () => {
     if (!account) {
       setNfts([]);
       return;
     }
-    setIsLoading(true);
-    setLoadError(null);
+    setIsLoadingNFTs(true);
+    setNftLoadError(null);
 
     try {
       const fetched = await fetchAccountNFTs(account, network);
@@ -82,12 +117,16 @@ export function App() {
           try {
             const meta = await fetchIPFSMetadata(nft.decodedUri, pinataSettings.gateway);
             setNfts((prev) =>
-              prev.map((item) => (item.nft_id === nft.nft_id ? { ...item, metadata: meta, metadataLoading: false } : item))
+              prev.map((item) =>
+                item.nft_id === nft.nft_id ? { ...item, metadata: meta, metadataLoading: false } : item
+              )
             );
           } catch {
             setNfts((prev) =>
               prev.map((item) =>
-                item.nft_id === nft.nft_id ? { ...item, metadataError: 'Failed to resolve IPFS', metadataLoading: false } : item
+                item.nft_id === nft.nft_id
+                  ? { ...item, metadataError: 'Could not load metadata', metadataLoading: false }
+                  : item
               )
             );
           }
@@ -95,9 +134,9 @@ export function App() {
       });
     } catch (err: any) {
       console.error('Failed to load NFTs:', err);
-      setLoadError(err.message || 'Could not fetch NFTs for this account. Ensure address is valid.');
+      setNftLoadError(err.message || 'Could not fetch your minted NFTs.');
     } finally {
-      setIsLoading(false);
+      setIsLoadingNFTs(false);
     }
   }, [account, network, pinataSettings.gateway]);
 
@@ -105,7 +144,14 @@ export function App() {
     loadNFTs();
   }, [loadNFTs]);
 
-  // Handle successful modification
+  // Sign out
+  const handleSignOut = () => {
+    setAccount('');
+    sessionStorage.removeItem('xrpl_active_account');
+    setNfts([]);
+  };
+
+  // On successful metadata update
   const handleModifySuccess = (newUri: string, _txHash: string) => {
     if (modifyTarget) {
       setNfts((prev) =>
@@ -123,7 +169,7 @@ export function App() {
     }
   };
 
-  // Filtered NFTs
+  // Filter NFTs by taxon and search
   const filteredNFTs = useMemo(() => {
     return nfts.filter((nft) => {
       if (selectedTaxon !== 'all' && nft.nft_taxon !== selectedTaxon) {
@@ -151,127 +197,93 @@ export function App() {
       {/* Navigation */}
       <Navbar
         account={account}
-        onSignOut={() => {
-          setAccount('');
-          setNfts([]);
-        }}
+        onSignOut={handleSignOut}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefreshNFTs={loadNFTs}
-        isLoading={isLoading}
-        onOpenXamanLogin={() => setIsLoginOpen(true)}
+        isLoading={isLoadingNFTs}
+        onOpenXamanLogin={() => {}}
       />
 
-      {/* Main Content */}
       <main className="main-content">
         {!account ? (
-          /* Clean, Direct Artist Login Screen */
+          /* Direct Xaman Login Card */
           <div
             style={{
-              maxWidth: '480px',
-              margin: '60px auto',
+              maxWidth: '420px',
+              margin: '50px auto',
+              padding: '32px 24px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-card)',
+              borderRadius: 'var(--radius-lg)',
               textAlign: 'center',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '24px',
-              padding: '40px 24px',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-card)',
-              borderRadius: 'var(--radius-lg)',
+              gap: '18px',
             }}
           >
-            <div
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '12px',
-                background: 'var(--accent-cyan)',
-                color: '#060913',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Palette size={32} />
-            </div>
-
             <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ffffff' }}>
-                XRPL NFT Metadata Editor
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#ffffff' }}>
+                Sign In with Xaman
               </h2>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.5 }}>
-                Connect with Xaman to view your collections, audit character and byte counts, and update metadata on your dynamic NFTs.
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                Scan the QR code with your phone to load your minted NFTs
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsLoginOpen(true)}
+            {/* QR Code display */}
+            <div
               style={{
-                width: '100%',
-                padding: '14px 20px',
+                padding: '12px',
+                background: '#ffffff',
                 borderRadius: 'var(--radius-md)',
-                background: 'var(--accent-cyan)',
-                color: '#060913',
-                fontWeight: 700,
-                fontSize: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+                display: 'inline-block',
               }}
             >
-              <Smartphone size={20} />
-              <span>Sign In with Xaman</span>
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-              <span>OR ENTER CREATOR WALLET</span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              {isLoginLoading ? (
+                <div style={{ width: '210px', height: '210px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <RefreshCw size={28} color="#0f172a" className="animate-spin" />
+                </div>
+              ) : loginQrUrl ? (
+                <img src={loginQrUrl} alt="Xaman Sign In QR" style={{ width: '210px', height: '210px', display: 'block' }} />
+              ) : (
+                <div style={{ width: '210px', height: '210px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontSize: '0.8rem', padding: '12px' }}>
+                  {loginError || 'Could not load QR code'}
+                </div>
+              )}
             </div>
 
-            {/* Quick manual address form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (landingAddress.trim()) {
-                  setAccount(landingAddress.trim());
-                }
-              }}
-              style={{ display: 'flex', gap: '8px', width: '100%' }}
-            >
-              <input
-                type="text"
-                placeholder="r... (Enter Classic Address)"
-                value={landingAddress}
-                onChange={(e) => setLandingAddress(e.target.value)}
-                style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
-              />
-              <button
-                type="submit"
+            {/* Mobile Button */}
+            {loginDeepLink && (
+              <a
+                href={loginDeepLink}
+                target="_blank"
+                rel="noreferrer"
                 style={{
-                  padding: '10px 18px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  color: '#ffffff',
-                  fontWeight: 600,
-                  fontSize: '0.82rem',
-                  borderRadius: 'var(--radius-md)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  flexShrink: 0,
+                  justifyContent: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '12px 18px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--accent-cyan)',
+                  color: '#060913',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  textDecoration: 'none',
                 }}
               >
-                <span>View</span>
-                <ArrowRight size={14} />
-              </button>
-            </form>
+                <Smartphone size={18} />
+                <span>Open in Xaman Mobile App</span>
+              </a>
+            )}
           </div>
         ) : (
-          /* Logged-in View */
+          /* Authenticated Artist Dashboard */
           <>
-            {/* Taxon & Filter Controls */}
+            {/* Taxon / Collection Selector */}
             <TaxonSelector
               nfts={nfts}
               selectedTaxon={selectedTaxon}
@@ -282,89 +294,45 @@ export function App() {
               onSearchChange={setSearchQuery}
             />
 
-            {/* Error Message */}
-            {loadError && (
+            {/* Error banner */}
+            {nftLoadError && (
               <div
                 style={{
-                  padding: '14px 18px',
+                  padding: '12px 16px',
                   borderRadius: 'var(--radius-md)',
-                  background: 'rgba(244, 63, 94, 0.1)',
+                  background: 'rgba(244, 63, 94, 0.12)',
                   border: '1px solid rgba(244, 63, 94, 0.3)',
                   color: '#fca5a5',
-                  fontSize: '0.85rem',
-                  marginBottom: '20px',
+                  fontSize: '0.82rem',
+                  marginBottom: '18px',
                   display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
-                <span>{loadError}</span>
+                <span>{nftLoadError}</span>
                 <button
                   type="button"
                   onClick={loadNFTs}
-                  style={{ color: '#fff', fontWeight: 600, background: 'rgba(244, 63, 94, 0.2)', padding: '4px 10px', borderRadius: '4px' }}
+                  style={{ color: '#fff', fontWeight: 600, background: 'rgba(244, 63, 94, 0.25)', padding: '4px 8px', borderRadius: '4px' }}
                 >
                   Retry
                 </button>
               </div>
             )}
 
-            {/* Loading Spinner */}
-            {isLoading && nfts.length === 0 ? (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '80px 20px',
-                  gap: '14px',
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                <RefreshCw size={32} color="var(--accent-cyan)" className="animate-spin" />
-                <span style={{ fontSize: '0.9rem' }}>Loading NFTs minted by this account...</span>
+            {/* Loading */}
+            {isLoadingNFTs && nfts.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', gap: '12px', color: 'var(--text-secondary)' }}>
+                <RefreshCw size={28} color="var(--accent-cyan)" className="animate-spin" />
+                <span style={{ fontSize: '0.88rem' }}>Loading your minted NFTs...</span>
               </div>
             ) : filteredNFTs.length === 0 ? (
-              /* Empty State */
-              <div
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px dashed var(--border-card)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: '60px 20px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>No NFTs Found in This Selection</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  {mutableOnly ? 'No mutable tokens found. Try unchecking Mutable Only.' : 'No tokens found for this taxon.'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedTaxon('all');
-                    setMutableOnly(false);
-                    setSearchQuery('');
-                  }}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--accent-cyan)',
-                    color: '#060913',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  Show All Collections
-                </button>
+              <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border-card)', borderRadius: 'var(--radius-lg)', padding: '50px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <p style={{ fontSize: '0.9rem' }}>No NFTs found for this collection.</p>
               </div>
             ) : (
-              /* NFT Grid */
+              /* NFT Cards */
               <div className="nft-grid">
                 {filteredNFTs.map((nft) => (
                   <NFTCard
@@ -380,7 +348,7 @@ export function App() {
         )}
       </main>
 
-      {/* Modals */}
+      {/* Editor Modal */}
       {selectedNFT && (
         <MetadataEditorModal
           nft={selectedNFT}
@@ -394,6 +362,7 @@ export function App() {
         />
       )}
 
+      {/* Modify / Sign Modal */}
       {modifyTarget && (
         <ModifyModal
           isOpen={!!modifyTarget}
@@ -402,20 +371,28 @@ export function App() {
           updatedMetadata={modifyTarget.updatedMetadata}
           userAccount={account}
           pinataSettings={pinataSettings}
-          xamanSettings={xamanSettings}
+          xamanSettings={{
+            apiKey: '16c555db-35ce-4b84-a656-53b2ec76b5bc',
+            apiSecret: '78e21880-3040-4972-9bb7-3a9e06a0ac35',
+            userAddress: account,
+            isConnected: true,
+          }}
           network={network}
           onSuccess={handleModifySuccess}
         />
       )}
 
+      {/* Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        xamanSettings={xamanSettings}
-        onSaveXaman={(settings) => {
-          setXamanSettings(settings);
-          localStorage.setItem('xrpl_xaman_settings', JSON.stringify(settings));
+        xamanSettings={{
+          apiKey: '16c555db-35ce-4b84-a656-53b2ec76b5bc',
+          apiSecret: '78e21880-3040-4972-9bb7-3a9e06a0ac35',
+          userAddress: account,
+          isConnected: !!account,
         }}
+        onSaveXaman={() => {}}
         pinataSettings={pinataSettings}
         onSavePinata={(settings) => {
           setPinataSettings(settings);
@@ -423,15 +400,6 @@ export function App() {
         }}
         network={network}
         onChangeNetwork={setNetwork}
-      />
-
-      <XamanLoginModal
-        isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
-        onLoginSuccess={(acc) => {
-          setAccount(acc);
-          setIsLoginOpen(false);
-        }}
       />
     </div>
   );
