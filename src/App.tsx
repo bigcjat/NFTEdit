@@ -10,14 +10,12 @@ import { MetadataEditorModal } from './components/MetadataEditorModal';
 import { ModifyModal } from './components/ModifyModal';
 import { SettingsModal } from './components/SettingsModal';
 import { XamanLoginModal } from './components/XamanLoginModal';
-import { Sparkles, Layers, RefreshCw, Smartphone, AlertCircle } from 'lucide-react';
-
-const DEFAULT_DEMO_ACCOUNT = 'rEGdtVbJp2FEcEd39pAZqkUXi3REwwdFvC';
+import { RefreshCw, Smartphone, Palette, ArrowRight } from 'lucide-react';
 
 export function App() {
-  // Account & Network
+  // Account & Network (starts empty or loads from localStorage)
   const [account, setAccount] = useState<string>(() => {
-    return localStorage.getItem('xrpl_user_account') || DEFAULT_DEMO_ACCOUNT;
+    return localStorage.getItem('xrpl_user_account') || '';
   });
   const [network, setNetwork] = useState<XRPLNetwork>(() => {
     return (localStorage.getItem('xrpl_network') as XRPLNetwork) || 'mainnet';
@@ -25,16 +23,11 @@ export function App() {
 
   // Settings
   const [xamanSettings, setXamanSettings] = useState<XamanSettings>(() => {
-    const defaultKey = import.meta.env.VITE_XAMAN_API_KEY || '16c555db-35ce-4b84-a656-53b2ec76b5bc';
     const saved = localStorage.getItem('xrpl_xaman_settings');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      if (!parsed.apiKey && defaultKey) {
-        parsed.apiKey = defaultKey;
-      }
-      return parsed;
+      return JSON.parse(saved);
     }
-    return { apiKey: defaultKey, apiSecret: '', userAddress: '', isConnected: false };
+    return { apiKey: '16c555db-35ce-4b84-a656-53b2ec76b5bc', apiSecret: '78e21880-3040-4972-9bb7-3a9e06a0ac35', userAddress: '', isConnected: false };
   });
 
   const [pinataSettings, setPinataSettings] = useState<PinataSettings>(() => {
@@ -58,33 +51,24 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
 
+  // Direct address input for landing
+  const [landingAddress, setLandingAddress] = useState('');
+
   // Persist account
   useEffect(() => {
-    localStorage.setItem('xrpl_user_account', account);
+    if (account) {
+      localStorage.setItem('xrpl_user_account', account);
+    } else {
+      localStorage.removeItem('xrpl_user_account');
+    }
   }, [account]);
 
-  // Persist network
-  useEffect(() => {
-    localStorage.setItem('xrpl_network', network);
-  }, [network]);
-
-  // Save Settings Handlers
-  const handleSaveXaman = (settings: XamanSettings) => {
-    setXamanSettings(settings);
-    localStorage.setItem('xrpl_xaman_settings', JSON.stringify(settings));
-    if (settings.userAddress && settings.userAddress !== account) {
-      setAccount(settings.userAddress);
-    }
-  };
-
-  const handleSavePinata = (settings: PinataSettings) => {
-    setPinataSettings(settings);
-    localStorage.setItem('xrpl_pinata_settings', JSON.stringify(settings));
-  };
-
-  // Fetch NFTs
+  // Fetch NFTs for account
   const loadNFTs = useCallback(async () => {
-    if (!account) return;
+    if (!account) {
+      setNfts([]);
+      return;
+    }
     setIsLoading(true);
     setLoadError(null);
 
@@ -142,15 +126,12 @@ export function App() {
   // Filtered NFTs
   const filteredNFTs = useMemo(() => {
     return nfts.filter((nft) => {
-      // Taxon filter
       if (selectedTaxon !== 'all' && nft.nft_taxon !== selectedTaxon) {
         return false;
       }
-      // Mutable filter
       if (mutableOnly && !nft.isMutable) {
         return false;
       }
-      // Search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const nameMatch = nft.metadata?.name?.toLowerCase().includes(query);
@@ -165,187 +146,237 @@ export function App() {
     });
   }, [nfts, selectedTaxon, mutableOnly, searchQuery]);
 
-  // Statistics
-  const totalNFTs = nfts.length;
-  const mutableCount = nfts.filter((n) => n.isMutable).length;
-  const uniqueTaxons = new Set(nfts.map((n) => n.nft_taxon)).size;
-
   return (
     <div className="app-container">
-      {/* Top Navigation */}
+      {/* Navigation */}
       <Navbar
         account={account}
-        onSelectAccount={setAccount}
-        network={network}
+        onSignOut={() => {
+          setAccount('');
+          setNfts([]);
+        }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefreshNFTs={loadNFTs}
         isLoading={isLoading}
         onOpenXamanLogin={() => setIsLoginOpen(true)}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <main className="main-content">
-        
-        {/* Hero Stats */}
-        <div className="stats-hero-grid">
-          <div className="stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'var(--accent-blue-dim)', color: 'var(--accent-blue)' }}>
-              <Layers size={22} />
-            </div>
-            <div>
-              <div className="stat-val">{totalNFTs}</div>
-              <div className="stat-label">Total NFTs Issued / Owned</div>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'var(--accent-cyan-dim)', color: 'var(--accent-cyan)' }}>
-              <Sparkles size={22} />
-            </div>
-            <div>
-              <div className="stat-val">{mutableCount}</div>
-              <div className="stat-label">Dynamic NFTs (tfMutable Enabled)</div>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'var(--accent-purple-dim)', color: 'var(--accent-purple)' }}>
-              <Layers size={22} />
-            </div>
-            <div>
-              <div className="stat-val">{uniqueTaxons}</div>
-              <div className="stat-label">Unique Taxon Collections</div>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'var(--accent-emerald-dim)', color: 'var(--accent-emerald)' }}>
-              <Smartphone size={22} />
-            </div>
-            <div>
-              <div className="stat-val">Xaman</div>
-              <div className="stat-label">DynamicNFT Amendment Supported</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Taxon & Filter Controls */}
-        <TaxonSelector
-          nfts={nfts}
-          selectedTaxon={selectedTaxon}
-          onSelectTaxon={setSelectedTaxon}
-          mutableOnly={mutableOnly}
-          onToggleMutableOnly={setMutableOnly}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
-
-        {/* Load Error Alert */}
-        {loadError && (
+        {!account ? (
+          /* Clean, Direct Artist Login Screen */
           <div
             style={{
-              padding: '16px',
-              borderRadius: 'var(--radius-md)',
-              background: 'rgba(244, 63, 94, 0.1)',
-              border: '1px solid rgba(244, 63, 94, 0.3)',
-              color: '#fca5a5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '20px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <AlertCircle size={20} />
-              <span>{loadError}</span>
-            </div>
-            <button
-              type="button"
-              onClick={loadNFTs}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'rgba(244, 63, 94, 0.2)',
-                color: '#ffffff',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-              }}
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Loading Spinner */}
-        {isLoading && nfts.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '80px 20px',
-              gap: '14px',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <RefreshCw size={36} color="var(--accent-cyan)" className="animate-spin" />
-            <span style={{ fontSize: '0.95rem' }}>Querying XRPL Clio node for account NFTs...</span>
-          </div>
-        ) : filteredNFTs.length === 0 ? (
-          /* Empty State */
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px dashed var(--border-card)',
-              borderRadius: 'var(--radius-lg)',
-              padding: '60px 20px',
+              maxWidth: '480px',
+              margin: '60px auto',
               textAlign: 'center',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '14px',
+              gap: '24px',
+              padding: '40px 24px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-card)',
+              borderRadius: 'var(--radius-lg)',
             }}
           >
-            <Sparkles size={40} color="var(--text-muted)" />
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 600 }}>No NFTs Match Current Criteria</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '450px' }}>
-              {mutableOnly
-                ? 'No tokens in this selection have tfMutable enabled. Try disabling the tfMutable-only filter.'
-                : 'No NFTs found for this account or taxon. Try switching taxons or loading another creator account.'}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedTaxon('all');
-                setMutableOnly(false);
-                setSearchQuery('');
-              }}
+            <div
               style={{
-                padding: '8px 18px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--accent-cyan-dim)',
-                color: 'var(--accent-cyan)',
-                border: '1px solid rgba(0, 230, 203, 0.3)',
-                fontSize: '0.82rem',
-                fontWeight: 600,
+                width: '56px',
+                height: '56px',
+                borderRadius: '12px',
+                background: 'var(--accent-cyan)',
+                color: '#060913',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              Reset Filters
+              <Palette size={32} />
+            </div>
+
+            <div>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ffffff' }}>
+                XRPL NFT Metadata Editor
+              </h2>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.5 }}>
+                Connect with Xaman to view your collections, audit character and byte counts, and update metadata on your dynamic NFTs.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsLoginOpen(true)}
+              style={{
+                width: '100%',
+                padding: '14px 20px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--accent-cyan)',
+                color: '#060913',
+                fontWeight: 700,
+                fontSize: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+              }}
+            >
+              <Smartphone size={20} />
+              <span>Sign In with Xaman</span>
             </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              <span>OR ENTER CREATOR WALLET</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+            </div>
+
+            {/* Quick manual address form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (landingAddress.trim()) {
+                  setAccount(landingAddress.trim());
+                }
+              }}
+              style={{ display: 'flex', gap: '8px', width: '100%' }}
+            >
+              <input
+                type="text"
+                placeholder="r... (Enter Classic Address)"
+                value={landingAddress}
+                onChange={(e) => setLandingAddress(e.target.value)}
+                style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
+              />
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 18px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  flexShrink: 0,
+                }}
+              >
+                <span>View</span>
+                <ArrowRight size={14} />
+              </button>
+            </form>
           </div>
         ) : (
-          /* NFT Grid */
-          <div className="nft-grid">
-            {filteredNFTs.map((nft) => (
-              <NFTCard
-                key={nft.nft_id}
-                nft={nft}
-                onSelect={(selected) => setSelectedNFT(selected)}
-                customGateway={pinataSettings.gateway}
-              />
-            ))}
-          </div>
+          /* Logged-in View */
+          <>
+            {/* Taxon & Filter Controls */}
+            <TaxonSelector
+              nfts={nfts}
+              selectedTaxon={selectedTaxon}
+              onSelectTaxon={setSelectedTaxon}
+              mutableOnly={mutableOnly}
+              onToggleMutableOnly={setMutableOnly}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
+
+            {/* Error Message */}
+            {loadError && (
+              <div
+                style={{
+                  padding: '14px 18px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(244, 63, 94, 0.1)',
+                  border: '1px solid rgba(244, 63, 94, 0.3)',
+                  color: '#fca5a5',
+                  fontSize: '0.85rem',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span>{loadError}</span>
+                <button
+                  type="button"
+                  onClick={loadNFTs}
+                  style={{ color: '#fff', fontWeight: 600, background: 'rgba(244, 63, 94, 0.2)', padding: '4px 10px', borderRadius: '4px' }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Loading Spinner */}
+            {isLoading && nfts.length === 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '80px 20px',
+                  gap: '14px',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <RefreshCw size={32} color="var(--accent-cyan)" className="animate-spin" />
+                <span style={{ fontSize: '0.9rem' }}>Loading NFTs minted by this account...</span>
+              </div>
+            ) : filteredNFTs.length === 0 ? (
+              /* Empty State */
+              <div
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px dashed var(--border-card)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '60px 20px',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>No NFTs Found in This Selection</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  {mutableOnly ? 'No mutable tokens found. Try unchecking Mutable Only.' : 'No tokens found for this taxon.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTaxon('all');
+                    setMutableOnly(false);
+                    setSearchQuery('');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--accent-cyan)',
+                    color: '#060913',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  Show All Collections
+                </button>
+              </div>
+            ) : (
+              /* NFT Grid */
+              <div className="nft-grid">
+                {filteredNFTs.map((nft) => (
+                  <NFTCard
+                    key={nft.nft_id}
+                    nft={nft}
+                    onSelect={(selected) => setSelectedNFT(selected)}
+                    customGateway={pinataSettings.gateway}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -381,9 +412,15 @@ export function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         xamanSettings={xamanSettings}
-        onSaveXaman={handleSaveXaman}
+        onSaveXaman={(settings) => {
+          setXamanSettings(settings);
+          localStorage.setItem('xrpl_xaman_settings', JSON.stringify(settings));
+        }}
         pinataSettings={pinataSettings}
-        onSavePinata={handleSavePinata}
+        onSavePinata={(settings) => {
+          setPinataSettings(settings);
+          localStorage.setItem('xrpl_pinata_settings', JSON.stringify(settings));
+        }}
         network={network}
         onChangeNetwork={setNetwork}
       />
@@ -395,7 +432,6 @@ export function App() {
           setAccount(acc);
           setIsLoginOpen(false);
         }}
-        xamanSettings={xamanSettings}
       />
     </div>
   );

@@ -33,13 +33,16 @@ export async function generateClientQRCode(content: string): Promise<string> {
   }
 }
 
+export const DEFAULT_XAMAN_KEY = '16c555db-35ce-4b84-a656-53b2ec76b5bc';
+export const DEFAULT_XAMAN_SECRET = '78e21880-3040-4972-9bb7-3a9e06a0ac35';
+
 /**
  * Attempts to create a Xaman Payload using the Xaman API if credentials are provided.
  */
 export async function createXamanPayload(
   txJson: Record<string, any>,
-  apiKey?: string,
-  apiSecret?: string
+  apiKey = DEFAULT_XAMAN_KEY,
+  apiSecret = DEFAULT_XAMAN_SECRET
 ): Promise<XamanPayloadResponse | null> {
   if (!apiKey || !apiSecret) {
     return null;
@@ -62,7 +65,7 @@ export async function createXamanPayload(
       return await resp.json();
     }
   } catch (err) {
-    console.warn('Xaman API direct call failed (likely CORS on static site). Falling back to client-side QR:', err);
+    console.warn('Xaman API direct call failed, falling back to client-side QR:', err);
   }
 
   return null;
@@ -72,8 +75,8 @@ export async function createXamanPayload(
  * Creates a sign-in payload for Xaman.
  */
 export async function createXamanSignInPayload(
-  apiKey?: string,
-  apiSecret?: string
+  apiKey = DEFAULT_XAMAN_KEY,
+  apiSecret = DEFAULT_XAMAN_SECRET
 ): Promise<XamanPayloadResponse | null> {
   const signInTx = {
     TransactionType: 'SignIn',

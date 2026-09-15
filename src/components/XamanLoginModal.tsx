@@ -1,73 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import type { XamanSettings } from '../types';
-import { createXamanSignInPayload, generateClientQRCode, subscribeToXamanPayload } from '../utils/xaman';
+import { createXamanSignInPayload, subscribeToXamanPayload } from '../utils/xaman';
 import { X, Smartphone, RefreshCw, ArrowRight } from 'lucide-react';
 
 interface XamanLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (account: string) => void;
-  xamanSettings: XamanSettings;
 }
 
 export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
-  xamanSettings,
 }) => {
   if (!isOpen) return null;
-
-  const DEMO_ACCOUNT = 'rEGdtVbJp2FEcEd39pAZqkUXi3REwwdFvC';
 
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [deepLink, setDeepLink] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [manualAddress, setManualAddress] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
 
     async function initSignIn() {
       setIsLoading(true);
+      setErrorMsg(null);
 
-      // If Xaman credentials are configured
-      if (xamanSettings.apiKey && xamanSettings.apiSecret) {
-        try {
-          const payload = await createXamanSignInPayload(xamanSettings.apiKey, xamanSettings.apiSecret);
-          if (payload?.refs?.qr_png) {
-            setQrCodeUrl(payload.refs.qr_png);
-            if (payload.next?.always) {
-              setDeepLink(payload.next.always);
-            }
-            if (payload.refs.websocket_status) {
-              unsubscribe = subscribeToXamanPayload(
-                payload.refs.websocket_status,
-                (data) => {
-                  if (data.signed && data.account) {
-                    onLoginSuccess(data.account);
-                    onClose();
-                  }
-                },
-                (err) => console.error(err)
-              );
-            }
-            setIsLoading(false);
-            return;
-          }
-        } catch (e) {
-          console.warn('Xaman API sign in payload failed, generating client QR fallback:', e);
-        }
-      }
-
-      // Fallback: Generate Client-side QR of SignIn Tx
       try {
-        const signInTx = { TransactionType: 'SignIn' };
-        const qr = await generateClientQRCode(JSON.stringify(signInTx));
-        setQrCodeUrl(qr);
-        setDeepLink(`https://xumm.app/sign?payload=${encodeURIComponent(JSON.stringify(signInTx))}`);
-      } catch (err) {
-        console.error('QR code generation failed:', err);
+        const payload = await createXamanSignInPayload();
+        if (payload?.refs?.qr_png) {
+          setQrCodeUrl(payload.refs.qr_png);
+          if (payload.next?.always) {
+            setDeepLink(payload.next.always);
+          }
+          if (payload.refs.websocket_status) {
+            unsubscribe = subscribeToXamanPayload(
+              payload.refs.websocket_status,
+              (data) => {
+                if (data.signed && data.account) {
+                  onLoginSuccess(data.account);
+                  onClose();
+                }
+              },
+              (err) => console.error(err)
+            );
+          }
+        } else {
+          setErrorMsg('Could not generate Xaman sign-in payload.');
+        }
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Error connecting to Xaman');
       } finally {
         setIsLoading(false);
       }
@@ -78,7 +62,7 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [isOpen, xamanSettings]);
+  }, [isOpen]);
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +90,7 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
       <div
         style={{
           width: '100%',
-          maxWidth: '480px',
+          maxWidth: '440px',
           backgroundColor: 'rgba(15, 23, 42, 0.98)',
           border: '1px solid var(--border-card)',
           borderRadius: 'var(--radius-lg)',
@@ -138,10 +122,10 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
         <div style={{ textAlign: 'center' }}>
           <div
             style={{
-              width: '48px',
-              height: '48px',
+              width: '44px',
+              height: '44px',
               borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, #00e6cb 0%, #38bdf8 100%)',
+              background: 'var(--accent-cyan)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -151,9 +135,9 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
           >
             <Smartphone size={24} />
           </div>
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>Connect with Xaman</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#ffffff' }}>Sign In with Xaman</h2>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Scan the QR code with your Xaman app or tap to open on mobile
+            Scan with the Xaman app on your phone to load your minted NFTs
           </p>
         </div>
 
@@ -161,7 +145,7 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
           <div
             style={{
-              padding: '14px',
+              padding: '12px',
               background: '#ffffff',
               borderRadius: 'var(--radius-md)',
               boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
@@ -174,7 +158,11 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
               </div>
             ) : qrCodeUrl ? (
               <img src={qrCodeUrl} alt="Xaman Sign In QR" style={{ width: '200px', height: '200px', display: 'block' }} />
-            ) : null}
+            ) : (
+              <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontSize: '0.8rem', padding: '10px', textAlign: 'center' }}>
+                {errorMsg || 'Could not load QR code'}
+              </div>
+            )}
           </div>
 
           {/* Deep link button for mobile */}
@@ -190,7 +178,7 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
                 gap: '8px',
                 padding: '10px 18px',
                 borderRadius: 'var(--radius-md)',
-                background: 'linear-gradient(135deg, #00e6cb 0%, #38bdf8 100%)',
+                background: 'var(--accent-cyan)',
                 color: '#060913',
                 fontWeight: 600,
                 fontSize: '0.88rem',
@@ -200,74 +188,44 @@ export const XamanLoginModal: React.FC<XamanLoginModalProps> = ({
               }}
             >
               <Smartphone size={16} />
-              Open in Xaman App
+              Open in Xaman Mobile App
             </a>
           )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-dim)', fontSize: '0.75rem' }}>
           <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-          <span>OR QUICK ACCESS</span>
+          <span>OR ENTER ADDRESS DIRECTLY</span>
           <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
         </div>
 
-        {/* Demo Account 1-Click */}
-        <button
-          type="button"
-          onClick={() => {
-            onLoginSuccess(DEMO_ACCOUNT);
-            onClose();
-          }}
-          style={{
-            padding: '10px 14px',
-            borderRadius: 'var(--radius-md)',
-            background: 'rgba(0, 230, 203, 0.08)',
-            border: '1px solid rgba(0, 230, 203, 0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            color: 'var(--text-primary)',
-          }}
-        >
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
-              Load Demo Creator Account
-            </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              Vincent Van Togh (rEGdtVbJp...FvC)
-            </div>
-          </div>
-          <ArrowRight size={16} color="var(--accent-cyan)" />
-        </button>
-
         {/* Manual Address Input */}
-        <form onSubmit={handleManualSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            Or paste any XRPL Creator Address:
-          </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="text"
-              placeholder="r..."
-              value={manualAddress}
-              onChange={(e) => setManualAddress(e.target.value)}
-              style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
-            />
-            <button
-              type="submit"
-              style={{
-                padding: '8px 14px',
-                background: 'var(--accent-blue)',
-                color: '#060913',
-                fontWeight: 600,
-                fontSize: '0.8rem',
-                borderRadius: 'var(--radius-md)',
-                flexShrink: 0,
-              }}
-            >
-              Connect
-            </button>
-          </div>
+        <form onSubmit={handleManualSubmit} style={{ display: 'flex', gap: '8px' }}>
+          <input
+            type="text"
+            placeholder="r..."
+            value={manualAddress}
+            onChange={(e) => setManualAddress(e.target.value)}
+            style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
+          />
+          <button
+            type="submit"
+            style={{
+              padding: '8px 16px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: '#ffffff',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flexShrink: 0,
+            }}
+          >
+            <span>View</span>
+            <ArrowRight size={13} />
+          </button>
         </form>
       </div>
     </div>
