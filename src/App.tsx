@@ -156,6 +156,13 @@ export function App() {
     }
   };
 
+  // Cache loaded metadata into parent nfts state
+  const handleMetadataLoaded = useCallback((nftId: string, meta: NFTMetadata) => {
+    setNfts((prev) =>
+      prev.map((item) => (item.nft_id === nftId ? { ...item, metadata: meta } : item))
+    );
+  }, []);
+
   // Filter NFTs by taxon and search
   const filteredNFTs = useMemo(() => {
     return nfts.filter((nft) => {
@@ -178,6 +185,17 @@ export function App() {
       return true;
     });
   }, [nfts, selectedTaxon, mutableOnly, searchQuery]);
+
+  // Progressive batch rendering to keep DOM fast with 2,700+ NFTs
+  const [displayLimit, setDisplayLimit] = useState(48);
+
+  useEffect(() => {
+    setDisplayLimit(48);
+  }, [selectedTaxon, mutableOnly, searchQuery]);
+
+  const visibleNFTs = useMemo(() => {
+    return filteredNFTs.slice(0, displayLimit);
+  }, [filteredNFTs, displayLimit]);
 
   return (
     <div className="app-container">
@@ -382,16 +400,49 @@ export function App() {
               </div>
             ) : (
               /* NFT Cards */
-              <div className="nft-grid">
-                {filteredNFTs.map((nft) => (
-                  <NFTCard
-                    key={nft.nft_id}
-                    nft={nft}
-                    onSelect={(selected) => setSelectedNFT(selected)}
-                    customGateway={pinataSettings.gateway}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="nft-grid">
+                  {visibleNFTs.map((nft) => (
+                    <NFTCard
+                      key={nft.nft_id}
+                      nft={nft}
+                      onSelect={(selected) => setSelectedNFT(selected)}
+                      customGateway={pinataSettings.gateway}
+                      onMetadataLoaded={handleMetadataLoaded}
+                    />
+                  ))}
+                </div>
+
+                {displayLimit < filteredNFTs.length && (
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '36px', marginBottom: '20px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setDisplayLimit((prev) => prev + 48)}
+                      style={{
+                        padding: '11px 26px',
+                        background: 'rgba(0, 230, 203, 0.08)',
+                        border: '1px solid rgba(0, 230, 203, 0.35)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--accent-cyan)',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(0, 230, 203, 0.18)';
+                        e.currentTarget.style.borderColor = 'var(--accent-cyan)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(0, 230, 203, 0.08)';
+                        e.currentTarget.style.borderColor = 'rgba(0, 230, 203, 0.35)';
+                      }}
+                    >
+                      Load More ({visibleNFTs.length} of {filteredNFTs.length} displayed)
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -408,6 +459,7 @@ export function App() {
             setSelectedNFT(null);
           }}
           customGateway={pinataSettings.gateway}
+          onMetadataLoaded={handleMetadataLoaded}
         />
       )}
 

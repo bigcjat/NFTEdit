@@ -74,7 +74,7 @@ export function resolveIPFSUrl(uri: string, gateway?: string): string {
  * and an optional onXRP/Bidds indexer fallback.
  */
 export async function fetchIPFSMetadata(
-  uri: string,
+  uri?: string,
   customGateway?: string,
   nftId?: string
 ): Promise<NFTMetadata> {

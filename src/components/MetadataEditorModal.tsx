@@ -28,6 +28,7 @@ interface MetadataEditorModalProps {
   onClose: () => void;
   onProceedToSign: (updatedMetadata: NFTMetadata) => void;
   customGateway?: string;
+  onMetadataLoaded?: (nftId: string, metadata: NFTMetadata) => void;
 }
 
 export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
@@ -36,6 +37,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   onClose,
   onProceedToSign,
   customGateway,
+  onMetadataLoaded,
 }) => {
   if (!isOpen || !nft) return null;
 
@@ -62,7 +64,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
 
   // Load actual IPFS metadata on-demand if token has decodedUri and metadata is not cached
   const handleLoadFromIPFS = async () => {
-    if (!nft?.decodedUri) return;
+    if (!nft?.decodedUri && !nft?.nft_id) return;
     setIsFetchingIpfs(true);
     setFetchIpfsError(null);
     try {
@@ -70,6 +72,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
       setMetadata(fetched);
       setRawJsonText(JSON.stringify(fetched, null, 2));
       setRawJsonError(null);
+      onMetadataLoaded?.(nft.nft_id, fetched);
     } catch (err: any) {
       console.warn('Could not load IPFS metadata for modal:', err);
       setFetchIpfsError('Could not fetch IPFS metadata from fallback gateways.');
@@ -602,7 +605,7 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                     <ByteBadge
                       audit={descAudit}
                       onSanitize={() =>
-                        updateFormMetadata({ ...metadata, description: sanitizeText(metadata.description) })
+                        updateFormMetadata({ ...metadata, description: sanitizeText(metadata.description || '') })
                       }
                     />
                   </div>

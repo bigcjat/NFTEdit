@@ -1,18 +1,85 @@
-import React, { useState } from 'react';
-import type { NFToken } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import type { NFToken, NFTMetadata } from '../types';
 import { IPFSImage } from './IPFSImage';
-import { Sparkles, Lock, Copy, Check } from 'lucide-react';
+import { fetchIPFSMetadata } from '../utils/ipfs';
+import { Sparkles, Lock, Copy, Check, RefreshCw } from 'lucide-react';
 
 interface NFTCardProps {
   nft: NFToken;
   onSelect: (nft: NFToken) => void;
   customGateway?: string;
+  onMetadataLoaded?: (nftId: string, metadata: NFTMetadata) => void;
 }
 
-export const NFTCard: React.FC<NFTCardProps> = ({ nft, onSelect, customGateway }) => {
+export const NFTCard: React.FC<NFTCardProps> = ({
+  nft,
+  onSelect,
+  customGateway,
+  onMetadataLoaded,
+}) => {
   const [copied, setCopied] = useState(false);
+  const [localMetadata, setLocalMetadata] = useState<NFTMetadata | null>(nft.metadata || null);
+  const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
-  const metadata = nft.metadata;
+  // Sync if parent updates nft.metadata
+  useEffect(() => {
+    if (nft.metadata) {
+      setLocalMetadata(nft.metadata);
+    }
+  }, [nft.metadata]);
+
+  // Lazy-load metadata when card scrolls into viewport
+  useEffect(() => {
+    if (localMetadata || !cardRef.current || (!nft.decodedUri && !nft.nft_id)) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          observer.disconnect();
+
+          // If the decoded URI is already an image file, use it directly
+          const isDirectImage =
+            nft.decodedUri && /\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/i.test(nft.decodedUri);
+          if (isDirectImage) {
+            const synthMeta: NFTMetadata = {
+              name: `NFToken #${nft.nft_serial}`,
+              description: '',
+              image: nft.decodedUri || '',
+            };
+            setLocalMetadata(synthMeta);
+            onMetadataLoaded?.(nft.nft_id, synthMeta);
+            return;
+          }
+
+          setIsLoadingMetadata(true);
+          fetchIPFSMetadata(nft.decodedUri, customGateway, nft.nft_id)
+            .then((fetched) => {
+              setLocalMetadata(fetched);
+              onMetadataLoaded?.(nft.nft_id, fetched);
+            })
+            .catch(() => {
+              // Leave localMetadata as null so honest fallback name/serial is shown, no fake data
+            })
+            .finally(() => {
+              setIsLoadingMetadata(false);
+            });
+        }
+      },
+      { rootMargin: '250px' }
+    );
+
+    observer.observe(cardRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [localMetadata, nft.decodedUri, nft.nft_id, customGateway, onMetadataLoaded]);
+
+  const metadata = localMetadata || nft.metadata;
   const displayName = metadata?.name || `NFToken Serial #${nft.nft_serial}`;
   const collectionName = metadata?.collection?.name || `Taxon #${nft.nft_taxon}`;
   const royaltyPercent = (nft.transfer_fee / 1000).toFixed(2);
@@ -26,6 +93,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({ nft, onSelect, customGateway }
 
   return (
     <div
+      ref={cardRef}
       onClick={() => onSelect(nft)}
       style={{
         background: 'var(--bg-card)',
@@ -60,12 +128,28 @@ export const NFTCard: React.FC<NFTCardProps> = ({ nft, onSelect, customGateway }
         }}
       >
         <div style={{ position: 'absolute', inset: 0 }}>
-          <IPFSImage
-            src={metadata?.image}
-            alt={displayName}
-            customGateway={customGateway}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+          {isLoadingMetadata ? (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent-cyan)',
+                backgroundColor: 'rgba(10, 15, 29, 0.9)',
+              }}
+            >
+              <RefreshCw size={22} className="animate-spin" style={{ opacity: 0.6 }} />
+            </div>
+          ) : (
+            <IPFSImage
+              src={metadata?.image}
+              alt={displayName}
+              customGateway={customGateway}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          )}
         </div>
 
 

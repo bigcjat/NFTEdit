@@ -11,8 +11,8 @@ export interface NFTMetadata {
   schema?: string;
   nftType?: string;
   name: string;
-  description: string;
-  image: string;
+  description?: string;
+  image?: string;
   animation?: string;
   video?: string;
   audio?: string;
