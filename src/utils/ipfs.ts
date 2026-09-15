@@ -1,69 +1,79 @@
 import type { NFTMetadata } from '../types';
 
 export const DEFAULT_GATEWAYS = [
+  'https://ipfs.filebase.io/ipfs/',
+  'https://ipfs.orbitor.dev/ipfs/',
+  'https://eu.orbitor.dev/ipfs/',
+  'https://apac.orbitor.dev/ipfs/',
+  'https://latam.orbitor.dev/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/',
   'https://ipfs.io/ipfs/',
   'https://dweb.link/ipfs/',
-  'https://gateway.pinata.cloud/ipfs/',
+  'https://nftstorage.link/ipfs/',
+  'http://127.0.0.1:8080/ipfs/',
 ];
+
+// In-memory cache to prevent duplicate fetches across component re-renders
+const metadataCache = new Map<string, NFTMetadata>();
+
+/**
+ * Returns an ordered array of candidate gateway HTTP URLs for an IPFS URI.
+ */
+export function getFallbackGatewayUrls(uri: string, customGateway?: string): string[] {
+  if (!uri) return [];
+
+  // Clean custom gateway if present
+  const gws = customGateway
+    ? [customGateway.endsWith('/') ? customGateway : `${customGateway}/`, ...DEFAULT_GATEWAYS]
+    : DEFAULT_GATEWAYS;
+
+  // If already an HTTP/HTTPS URL
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    if (uri.includes('/ipfs/')) {
+      const path = uri.split('/ipfs/')[1];
+      return [uri, ...gws.map((gw) => `${gw}${path}`)];
+    }
+    return [uri];
+  }
+
+  // Extract CID or path from ipfs:// or raw CID
+  let path = uri.replace(/^ipfs:\/\//, '');
+  if (path.includes('/ipfs/')) {
+    path = path.split('/ipfs/')[1];
+  }
+
+  return gws.map((gw) => `${gw}${path}`);
+}
 
 /**
  * Converts an IPFS URI (e.g. ipfs://CID or CID) to an HTTP gateway URL.
  */
 export function resolveIPFSUrl(uri: string, gateway?: string): string {
   if (!uri) return '';
-  const cleanGateway = gateway ? (gateway.endsWith('/') ? gateway : `${gateway}/`) : DEFAULT_GATEWAYS[0];
-
-  if (uri.startsWith('ipfs://')) {
-    const path = uri.replace(/^ipfs:\/\//, '');
-    return `${cleanGateway}${path}`;
-  }
-  if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    return uri;
-  }
-  // Might be raw CID
-  if (uri.startsWith('Qm') || uri.startsWith('bafy')) {
-    return `${cleanGateway}${uri}`;
-  }
-  return uri;
+  const urls = getFallbackGatewayUrls(uri, gateway);
+  return urls[0] || uri;
 }
 
 /**
- * Fetches JSON metadata from IPFS with fallback gateways and timeouts.
+ * Fetches JSON metadata from IPFS with cascading fallback gateways, caching, and timeouts.
  */
 export async function fetchIPFSMetadata(uri: string, customGateway?: string): Promise<NFTMetadata> {
   if (!uri) {
     throw new Error('No URI provided');
   }
 
-  // If it's already an HTTP URL and not an IPFS gateway, try directly first
-  if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    try {
-      const resp = await fetch(uri, { headers: { Accept: 'application/json' } });
-      if (resp.ok) {
-        return await resp.json();
-      }
-    } catch {
-      // Continue to gateway fallbacks if it failed
-    }
+  // Check in-memory cache first
+  if (metadataCache.has(uri)) {
+    return metadataCache.get(uri)!;
   }
 
-  // Extract CID or path
-  let path = uri.replace(/^ipfs:\/\//, '');
-  if (path.includes('/ipfs/')) {
-    path = path.split('/ipfs/')[1];
-  }
-
-  const gateways = customGateway 
-    ? [customGateway.endsWith('/') ? customGateway : `${customGateway}/`, ...DEFAULT_GATEWAYS]
-    : DEFAULT_GATEWAYS;
-
+  const urls = getFallbackGatewayUrls(uri, customGateway);
   let lastError: any = null;
 
-  for (const gw of gateways) {
-    const url = `${gw}${path}`;
+  for (const url of urls) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
 
       const resp = await fetch(url, {
         signal: controller.signal,
@@ -73,20 +83,19 @@ export async function fetchIPFSMetadata(uri: string, customGateway?: string): Pr
 
       if (resp.ok) {
         const text = await resp.text();
-        try {
-          return JSON.parse(text);
-        } catch {
-          throw new Error('Response was not valid JSON');
-        }
+        const parsed = JSON.parse(text);
+        metadataCache.set(uri, parsed);
+        return parsed;
       }
     } catch (err) {
       lastError = err;
-      // try next gateway
+      // Try next gateway in fallback list
     }
   }
 
-  throw lastError || new Error(`Failed to load IPFS metadata from all gateways for ${uri}`);
+  throw lastError || new Error(`Failed to load IPFS metadata from all fallback gateways for ${uri}`);
 }
+
 
 /**
  * Uploads JSON metadata to IPFS via Pinata.

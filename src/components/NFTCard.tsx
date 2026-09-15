@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { NFToken } from '../types';
-import { resolveIPFSUrl } from '../utils/ipfs';
-import { Sparkles, Lock, Copy, Check, Image as ImageIcon } from 'lucide-react';
+import { IPFSImage } from './IPFSImage';
+import { Sparkles, Lock, Copy, Check } from 'lucide-react';
 
 interface NFTCardProps {
   nft: NFToken;
@@ -10,15 +10,12 @@ interface NFTCardProps {
 }
 
 export const NFTCard: React.FC<NFTCardProps> = ({ nft, onSelect, customGateway }) => {
-  const [imageError, setImageError] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const metadata = nft.metadata;
-  const displayName = metadata?.name || `NFToken #${nft.nft_serial}`;
-  const collectionName = metadata?.collection?.name || `Taxon ${nft.nft_taxon}`;
+  const displayName = metadata?.name || `NFToken Serial #${nft.nft_serial}`;
+  const collectionName = metadata?.collection?.name || `Taxon #${nft.nft_taxon}`;
   const royaltyPercent = (nft.transfer_fee / 1000).toFixed(2);
-
-  const imageUrl = metadata?.image ? resolveIPFSUrl(metadata.image, customGateway) : '';
 
   const handleCopyId = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -62,41 +59,15 @@ export const NFTCard: React.FC<NFTCardProps> = ({ nft, onSelect, customGateway }
           overflow: 'hidden',
         }}
       >
-        {imageUrl && !imageError ? (
-          <img
-            src={imageUrl}
+        <div style={{ position: 'absolute', inset: 0 }}>
+          <IPFSImage
+            src={metadata?.image}
             alt={displayName}
-            onError={() => setImageError(true)}
-            loading="lazy"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transition: 'transform 0.3s ease',
-            }}
+            customGateway={customGateway}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
-        ) : (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-muted)',
-              gap: '8px',
-            }}
-          >
-            <ImageIcon size={36} style={{ opacity: 0.4 }} />
-            <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-              {nft.metadataLoading ? 'Loading IPFS...' : 'No Preview'}
-            </span>
-          </div>
-        )}
+        </div>
+
 
         {/* Floating Badges */}
         <div
