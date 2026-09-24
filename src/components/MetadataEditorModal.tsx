@@ -20,8 +20,11 @@ import {
   Info,
   RefreshCw,
   Upload,
-  Flame
+  Flame,
+  Scale,
+  ExternalLink
 } from 'lucide-react';
+import { LicenseModal } from './LicenseModal';
 
 
 export interface StandardFieldSuggestion {
@@ -46,9 +49,9 @@ export const STANDARD_METADATA_FIELDS: StandardFieldSuggestion[] = [
   },
   {
     key: 'license',
-    label: 'License',
-    description: 'Rights & Terms (e.g. CC0, CC BY-NC-SA)',
-    defaultValue: 'CC0',
+    label: 'License & Rights',
+    description: 'Intellectual property rights (CC0, Can\'t Be Evil, ARR, Commercial, Custom)',
+    defaultValue: 'CC0-1.0',
   },
   {
     key: 'external_url',
@@ -148,6 +151,20 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
   const [isAddingField, setIsAddingField] = useState<boolean>(false);
   const [newFieldName, setNewFieldName] = useState<string>('');
   const [newFieldValue, setNewFieldValue] = useState<string>('');
+
+  // License Modal State
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState<boolean>(false);
+
+  const handleApplyLicense = (code: string, url: string) => {
+    if (!metadata) return;
+    const next: NFTMetadata = { ...metadata, license: code };
+    if (url && url.trim()) {
+      next.license_url = url.trim();
+    } else {
+      delete next.license_url;
+    }
+    updateFormMetadata(next);
+  };
 
   // Clean up object URL when unmounting
   useEffect(() => {
@@ -1080,6 +1097,138 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                     );
                   }
 
+                  // Dedicated License & Rights Card
+                  if (key === 'license') {
+                    const licenseName = String(val || '');
+                    const licenseUrl = typeof metadata.license_url === 'string' ? metadata.license_url : '';
+                    const licenseAudit = auditField(licenseName, 'License');
+                    const urlAudit = licenseUrl ? auditField(licenseUrl, 'License URL') : null;
+
+                    return (
+                      <div
+                        key={key}
+                        style={{
+                          padding: '16px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Scale size={16} style={{ color: 'var(--accent-cyan)' }} />
+                            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              License & Legal Rights
+                            </label>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <ByteBadge audit={licenseAudit} compact />
+                            {urlAudit && <ByteBadge audit={urlAudit} compact />}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = { ...metadata };
+                                delete next.license;
+                                delete next.license_url;
+                                updateFormMetadata(next as NFTMetadata);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                              }}
+                              title="Remove License fields from JSON"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Selected License Summary Badge & Details */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '12px',
+                            padding: '12px 14px',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'rgba(9, 14, 28, 0.7)',
+                            border: '1px solid rgba(0, 230, 203, 0.2)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '68%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                                {licenseName || 'Unspecified'}
+                              </span>
+                            </div>
+                            {licenseUrl ? (
+                              <a
+                                href={licenseUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '0.74rem',
+                                  fontFamily: 'var(--font-mono)',
+                                  color: 'var(--text-secondary)',
+                                  textDecoration: 'none',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={licenseUrl}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{licenseUrl}</span>
+                                <ExternalLink size={11} style={{ flexShrink: 0, color: 'var(--accent-cyan)' }} />
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                No legal deed URL configured
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsLicenseModalOpen(true)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '7px 14px',
+                              borderRadius: 'var(--radius-md)',
+                              background: 'rgba(0, 230, 203, 0.1)',
+                              border: '1px solid rgba(0, 230, 203, 0.3)',
+                              color: 'var(--accent-cyan)',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <Scale size={14} /> Change License
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Skip standalone license_url if license is already rendered
+                  if (key === 'license_url' && 'license' in metadata) {
+                    return null;
+                  }
+
                   // Primitive string, number, boolean
                   if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
                     const strVal = String(val ?? '');
@@ -1251,6 +1400,16 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
                               key={suggestion.key}
                               type="button"
                               onClick={() => {
+                                if (suggestion.key === 'license') {
+                                  updateFormMetadata({
+                                    ...metadata,
+                                    license: 'CC0-1.0',
+                                    license_url: 'https://creativecommons.org/publicdomain/zero/1.0/',
+                                  });
+                                  setIsAddingField(false);
+                                  setIsLicenseModalOpen(true);
+                                  return;
+                                }
                                 updateFormMetadata({
                                   ...metadata,
                                   [suggestion.key]: suggestion.defaultValue,
@@ -1622,6 +1781,15 @@ export const MetadataEditorModal: React.FC<MetadataEditorModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* License & Rights Selection Modal */}
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        currentLicense={typeof metadata?.license === 'string' ? metadata.license : ''}
+        currentLicenseUrl={typeof metadata?.license_url === 'string' ? metadata.license_url : ''}
+        onApplyLicense={handleApplyLicense}
+      />
     </div>
   );
 };

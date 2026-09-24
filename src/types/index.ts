@@ -24,7 +24,21 @@ export interface NFTMetadata {
   };
   attributes?: TraitAttribute[];
   license?: string;
+  license_url?: string;
   [key: string]: any;
+}
+
+export type LicenseCategory = 'all' | 'art' | 'music' | 'web3' | '3d' | 'code' | 'custom';
+
+export interface LicensePreset {
+  id: string;
+  name: string;
+  category: 'art' | 'music' | 'web3' | '3d' | 'code';
+  rightsTag: string;
+  summary: string;
+  deedUrl?: string;
+  licenseCode: string;
+  licenseUrl: string;
 }
 
 export interface NFToken {
