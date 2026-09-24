@@ -28,12 +28,12 @@ export interface NFTMetadata {
   [key: string]: any;
 }
 
-export type LicenseCategory = 'all' | 'art' | 'music' | 'web3' | '3d' | 'code' | 'custom';
+export type LicenseCategory = 'all' | 'art' | 'web3' | 'code' | 'custom';
 
 export interface LicensePreset {
   id: string;
   name: string;
-  category: 'art' | 'music' | 'web3' | '3d' | 'code';
+  category: 'art' | 'web3' | 'code';
   rightsTag: string;
   summary: string;
   deedUrl?: string;

@@ -9,9 +9,7 @@ import {
   Check, 
   Sparkles, 
   Palette, 
-  Music, 
   Zap, 
-  Box, 
   Code, 
   Edit3 
 } from 'lucide-react';
@@ -200,11 +198,9 @@ export const LicenseModal: React.FC<LicenseModalProps> = ({
           >
             {[
               { id: 'all', label: 'All Licenses', icon: Sparkles },
-              { id: 'art', label: 'Visual Art', icon: Palette },
-              { id: 'music', label: 'Music & Audio', icon: Music },
-              { id: 'web3', label: 'Web3 (CBE)', icon: Zap },
-              { id: '3d', label: '3D Models', icon: Box },
-              { id: 'code', label: 'Code', icon: Code },
+              { id: 'art', label: 'Creative Commons & Art', icon: Palette },
+              { id: 'web3', label: 'Web3 & NFTs', icon: Zap },
+              { id: 'code', label: 'Code & Fonts', icon: Code },
               { id: 'custom', label: 'Custom License', icon: Edit3 },
             ].map((tab) => {
               const Icon = tab.icon;
