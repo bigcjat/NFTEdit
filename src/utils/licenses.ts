@@ -198,6 +198,16 @@ export const PRESET_LICENSES: LicensePreset[] = [
     licenseCode: 'CBE-PR-HS',
     licenseUrl: 'https://github.com/a16z/a16z-contracts/blob/master/licenses/pdf/05%20-%20a16z%20CBE%20Form%20License%20(CBE-Personal-No-Hate).pdf',
   },
+  {
+    id: 'cbe-public',
+    name: "Can't Be Evil: Public Domain (CBE-Public / CC0)",
+    category: 'web3',
+    rightsTag: 'Web3 Public Domain Dedication',
+    summary: 'Creator irrevocably dedicates the artwork to the public domain under Creative Commons Zero (CC0) terms within the a16z standardized Web3 framework.',
+    deedUrl: 'https://github.com/a16z/a16z-contracts/blob/master/licenses/pdf/06%20-%20a16z%20CBE%20Form%20License%20(CBE-Public).pdf',
+    licenseCode: 'CBE-Public',
+    licenseUrl: 'https://github.com/a16z/a16z-contracts/blob/master/licenses/pdf/06%20-%20a16z%20CBE%20Form%20License%20(CBE-Public).pdf',
+  },
 
   // ==========================================
   // --- Music & Audio ---
