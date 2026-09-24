@@ -1,23 +1,35 @@
 import type { LicensePreset, LicenseCategory } from '../types';
 
 export const PRESET_LICENSES: LicensePreset[] = [
-  // --- Visual Art & Photography ---
+  // ==========================================
+  // --- Visual Art, Photography & Media ---
+  // ==========================================
   {
     id: 'cc0-art',
     name: 'CC0 1.0 Universal',
     category: 'art',
     rightsTag: 'Public Domain',
-    summary: 'No copyright reserved. Anyone can freely remix, commercialize, or distribute the artwork worldwide without requiring attribution.',
+    summary: 'No copyright reserved. Anyone can freely remix, commercialize, distribute, and perform the artwork worldwide without requiring permission or attribution.',
     deedUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
     licenseCode: 'CC0-1.0',
     licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+  },
+  {
+    id: 'pdm-art',
+    name: 'Public Domain Mark 1.0 (PDM)',
+    category: 'art',
+    rightsTag: 'Historic Public Domain',
+    summary: 'Identifies cultural heritage, vintage photography, or historical artwork known to be free of all copyright restrictions under copyright law worldwide.',
+    deedUrl: 'https://creativecommons.org/publicdomain/mark/1.0/',
+    licenseCode: 'PDM-1.0',
+    licenseUrl: 'https://creativecommons.org/publicdomain/mark/1.0/',
   },
   {
     id: 'cc-by-4',
     name: 'CC BY 4.0 (Attribution)',
     category: 'art',
     rightsTag: 'Commercial with Credit',
-    summary: 'Others may share and adapt the artwork, even commercially, as long as appropriate credit is given to the creator.',
+    summary: 'Others may share and adapt the artwork, even commercially, as long as appropriate credit is given to the original creator.',
     deedUrl: 'https://creativecommons.org/licenses/by/4.0/',
     licenseCode: 'CC-BY-4.0',
     licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
@@ -33,6 +45,16 @@ export const PRESET_LICENSES: LicensePreset[] = [
     licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
   },
   {
+    id: 'cc-by-nd-4',
+    name: 'CC BY-ND 4.0 (No Derivatives)',
+    category: 'art',
+    rightsTag: 'Commercial / No Remixes',
+    summary: 'Others may reuse and distribute the artwork, including for commercial purposes, but it cannot be modified, remixed, or altered in any way.',
+    deedUrl: 'https://creativecommons.org/licenses/by-nd/4.0/',
+    licenseCode: 'CC-BY-ND-4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-nd/4.0/',
+  },
+  {
     id: 'cc-by-nc-4',
     name: 'CC BY-NC 4.0 (Non-Commercial)',
     category: 'art',
@@ -41,6 +63,16 @@ export const PRESET_LICENSES: LicensePreset[] = [
     deedUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
     licenseCode: 'CC-BY-NC-4.0',
     licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
+  },
+  {
+    id: 'cc-by-nc-sa-4',
+    name: 'CC BY-NC-SA 4.0 (Non-Commercial ShareAlike)',
+    category: 'art',
+    rightsTag: 'Non-Commercial Viral',
+    summary: 'Allows remixing and distributing the art for non-commercial purposes with credit, under identical non-commercial license terms.',
+    deedUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+    licenseCode: 'CC-BY-NC-SA-4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
   },
   {
     id: 'cc-by-nc-nd-4',
@@ -67,55 +99,55 @@ export const PRESET_LICENSES: LicensePreset[] = [
     name: 'Exhibition & Display Rights Only',
     category: 'art',
     rightsTag: 'Gallery & VR Display',
-    summary: 'Explicitly grants the token holder the right to exhibit the artwork publicly in physical galleries, museums, virtual reality spaces, and personal collections.',
+    summary: 'Explicitly grants the token holder the legal right to exhibit the artwork publicly in physical galleries, museums, virtual reality spaces, and personal screens.',
     deedUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
     licenseCode: 'Exhibition Rights Only',
     licenseUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
   },
-
-  // --- Music & Audio ---
   {
-    id: 'music-personal-listening',
-    name: 'Master Recording Personal Use',
-    category: 'music',
-    rightsTag: 'Private Listening Only',
-    summary: 'Collector receives private listening, virtual world avatar streaming, and personal playlist rights. Artist retains master copyright, sync rights, and mechanical royalties.',
+    id: 'editorial-use-only',
+    name: 'Editorial Use Only',
+    category: 'art',
+    rightsTag: 'News & Documentary',
+    summary: 'Artwork/photography may be used in newspapers, blogs, educational textbooks, and broadcast documentaries, but not for commercial advertising or retail merchandising.',
     deedUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
-    licenseCode: 'Music-Personal-Listening-Only',
+    licenseCode: 'Editorial-Use-Only',
     licenseUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
   },
   {
-    id: 'music-commercial-sync',
-    name: 'Commercial Synchronization & Streaming',
-    category: 'music',
-    rightsTag: 'Commercial Sync Allowed',
-    summary: 'Token holder may synchronize the audio track into videos, podcasts, video games, or live streams without paying additional sync fees.',
-    deedUrl: 'https://creativecommons.org/licenses/by/4.0/',
-    licenseCode: 'Music-Commercial-Sync-License',
-    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-  },
-  {
-    id: 'music-cc-by-nc',
-    name: 'CC BY-NC Audio (Remix with Credit)',
-    category: 'music',
-    rightsTag: 'Non-Commercial Sampling',
-    summary: 'Producers and fans can sample, remix, and share the track for non-commercial projects with artist credit.',
-    deedUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
-    licenseCode: 'CC-BY-NC-4.0-Audio',
-    licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
-  },
-  {
-    id: 'music-cc0-audio',
-    name: 'Open Music Stems & Samples (CC0)',
-    category: 'music',
-    rightsTag: 'Royalty-Free Public Domain',
-    summary: 'Complete stems and master audio dedicated to public domain. Royalty-free for any artist to sample in billboard releases or indie tracks.',
-    deedUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
-    licenseCode: 'CC0-1.0-Audio',
-    licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+    id: 'limited-commercial-merchandise',
+    name: 'Limited Commercial Merchandise License',
+    category: 'art',
+    rightsTag: 'Capped Commercial Goods',
+    summary: 'Token holder may produce and sell physical merchandise (apparel, prints, physical collectibles) featuring the artwork up to $100,000 USD gross annual revenue.',
+    deedUrl: 'https://www.niftylicense.org/',
+    licenseCode: 'Limited-Commercial-Merchandise-$100k',
+    licenseUrl: 'https://www.niftylicense.org/',
   },
 
-  // --- Web3 / NFT Standards (a16z Can't Be Evil Suite) ---
+  // ==========================================
+  // --- Web3 / NFT Industry Standards ---
+  // ==========================================
+  {
+    id: 'nifty-license',
+    name: 'The Nifty License (Dapper Labs Standard)',
+    category: 'web3',
+    rightsTag: 'Commercial Up to $100k/yr',
+    summary: 'The pioneering NFT license created for CryptoKitties: grants personal display rights and commercial merchandise rights up to $100,000 gross revenue per year.',
+    deedUrl: 'https://www.niftylicense.org/',
+    licenseCode: 'Nifty-License-v1',
+    licenseUrl: 'https://www.niftylicense.org/',
+  },
+  {
+    id: 'bayc-style-commercial',
+    name: 'Unlimited Commercial IP Ownership',
+    category: 'web3',
+    rightsTag: 'Full Commercial IP to Holder',
+    summary: 'Token holder receives broad, unlimited commercial exploitation rights (branding, merchandise, animation, commercial products) for their specific token while holding it.',
+    deedUrl: 'https://github.com/a16z/cant-be-evil-licenses/blob/master/licenses/LICENSE-CBE-ECR.md',
+    licenseCode: 'Unlimited-Commercial-IP-License',
+    licenseUrl: 'https://github.com/a16z/cant-be-evil-licenses/blob/master/licenses/LICENSE-CBE-ECR.md',
+  },
   {
     id: 'cbe-ecr',
     name: "Can't Be Evil: Exclusive Commercial (ECR)",
@@ -156,8 +188,84 @@ export const PRESET_LICENSES: LicensePreset[] = [
     licenseCode: 'CBE-PR',
     licenseUrl: 'https://github.com/a16z/cant-be-evil-licenses/blob/master/licenses/LICENSE-CBE-PR.md',
   },
+  {
+    id: 'cbe-pr-hs',
+    name: "Can't Be Evil: Personal + Sublicensing (PR-HS)",
+    category: 'web3',
+    rightsTag: 'Personal with Sublicensing',
+    summary: 'Permits personal use and grants limited sublicensing rights to third parties for personal display, without commercial monetization.',
+    deedUrl: 'https://github.com/a16z/cant-be-evil-licenses/blob/master/licenses/LICENSE-CBE-PR-HS.md',
+    licenseCode: 'CBE-PR-HS',
+    licenseUrl: 'https://github.com/a16z/cant-be-evil-licenses/blob/master/licenses/LICENSE-CBE-PR-HS.md',
+  },
 
-  // --- 3D Assets & Metaverse / Game Models ---
+  // ==========================================
+  // --- Music & Audio ---
+  // ==========================================
+  {
+    id: 'music-personal-listening',
+    name: 'Master Recording Personal Use',
+    category: 'music',
+    rightsTag: 'Private Listening Only',
+    summary: 'Collector receives private listening, virtual world avatar streaming, and personal playlist rights. Artist retains master copyright, sync rights, and mechanical royalties.',
+    deedUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+    licenseCode: 'Music-Personal-Listening-Only',
+    licenseUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  },
+  {
+    id: 'music-commercial-sync',
+    name: 'Commercial Synchronization & Streaming',
+    category: 'music',
+    rightsTag: 'Commercial Sync Allowed',
+    summary: 'Token holder may synchronize the audio track into videos, podcasts, video games, or live streams without paying additional sync fees.',
+    deedUrl: 'https://creativecommons.org/licenses/by/4.0/',
+    licenseCode: 'Music-Commercial-Sync-License',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  },
+  {
+    id: 'music-beat-lease',
+    name: 'Non-Exclusive Beat / Instrumental Lease',
+    category: 'music',
+    rightsTag: 'Music Recording Lease',
+    summary: 'Artist/producer grants rights to record new vocal performances over the beat and distribute up to 500,000 streams / 1 music video release.',
+    deedUrl: 'https://creativecommons.org/licenses/by/4.0/',
+    licenseCode: 'Non-Exclusive-Beat-Lease',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  },
+  {
+    id: 'music-broadcast-performance',
+    name: 'Broadcast & Public Performance License',
+    category: 'music',
+    rightsTag: 'Radio, TV & Live Performance',
+    summary: 'Grants authorization to broadcast the sound recording across radio, television, live venue events, and commercial DJ performance sets.',
+    deedUrl: 'https://creativecommons.org/licenses/by/4.0/',
+    licenseCode: 'Music-Broadcast-Performance-License',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  },
+  {
+    id: 'music-cc-by-nc',
+    name: 'CC BY-NC Audio (Remix with Credit)',
+    category: 'music',
+    rightsTag: 'Non-Commercial Sampling',
+    summary: 'Producers and fans can sample, remix, and share the track for non-commercial projects with artist credit.',
+    deedUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
+    licenseCode: 'CC-BY-NC-4.0-Audio',
+    licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
+  },
+  {
+    id: 'music-cc0-audio',
+    name: 'Open Music Stems & Samples (CC0)',
+    category: 'music',
+    rightsTag: 'Royalty-Free Public Domain',
+    summary: 'Complete stems and master audio dedicated to public domain. Royalty-free for any artist to sample in billboard releases or indie tracks.',
+    deedUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+    licenseCode: 'CC0-1.0-Audio',
+    licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+  },
+
+  // ==========================================
+  // --- 3D Assets, Gaming & 3D Printing ---
+  // ==========================================
   {
     id: '3d-royalty-free-commercial',
     name: 'Royalty-Free Commercial 3D Asset',
@@ -179,6 +287,26 @@ export const PRESET_LICENSES: LicensePreset[] = [
     licenseUrl: 'https://creativecommons.org/licenses/by-nc/4.0/',
   },
   {
+    id: '3d-print-personal',
+    name: '3D Print: Personal Fabrication Only',
+    category: '3d',
+    rightsTag: 'Personal 3D Print / No Sales',
+    summary: 'Grants the holder the right to 3D print physical copies of the model for personal display; strictly prohibits selling physical prints or molds.',
+    deedUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+    licenseCode: '3D-Print-Personal-Use-Only',
+    licenseUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  },
+  {
+    id: '3d-print-commercial',
+    name: '3D Print: Commercial Manufacturing',
+    category: '3d',
+    rightsTag: 'Physical Print Manufacturing',
+    summary: 'Grants authorization to 3D print, cast, manufacture, and sell physical physical sculptures or functional items derived from the 3D model.',
+    deedUrl: 'https://creativecommons.org/licenses/by/4.0/',
+    licenseCode: '3D-Print-Commercial-Manufacturing',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  },
+  {
     id: '3d-cc0-asset',
     name: 'CC0 Open 3D Asset (Public Domain)',
     category: '3d',
@@ -189,7 +317,9 @@ export const PRESET_LICENSES: LicensePreset[] = [
     licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
   },
 
-  // --- Code, Generative Art & Interactive Media ---
+  // ==========================================
+  // --- Code, Generative Art & Software ---
+  // ==========================================
   {
     id: 'code-mit',
     name: 'MIT License (Generative Script)',
@@ -211,14 +341,54 @@ export const PRESET_LICENSES: LicensePreset[] = [
     licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
   },
   {
+    id: 'code-bsd-3',
+    name: 'BSD 3-Clause License',
+    category: 'code',
+    rightsTag: 'Permissive with Non-Endorsement',
+    summary: 'Permissive open-source license with minimal restrictions and a clause prohibiting use of author names to endorse derived products.',
+    deedUrl: 'https://opensource.org/licenses/BSD-3-Clause',
+    licenseCode: 'BSD-3-Clause',
+    licenseUrl: 'https://opensource.org/licenses/BSD-3-Clause',
+  },
+  {
+    id: 'code-bsd-2',
+    name: 'BSD 2-Clause License',
+    category: 'code',
+    rightsTag: 'Simplified Permissive',
+    summary: 'Simplified open-source license granting free use, modification, and redistribution as long as original copyright notices are retained.',
+    deedUrl: 'https://opensource.org/licenses/BSD-2-Clause',
+    licenseCode: 'BSD-2-Clause',
+    licenseUrl: 'https://opensource.org/licenses/BSD-2-Clause',
+  },
+  {
+    id: 'code-mpl-2',
+    name: 'Mozilla Public License 2.0 (MPL-2.0)',
+    category: 'code',
+    rightsTag: 'Weak Copyleft',
+    summary: 'File-level copyleft license: modifications to existing code files must remain open source, but larger projects combining it can remain proprietary.',
+    deedUrl: 'https://www.mozilla.org/MPL/2.0/',
+    licenseCode: 'MPL-2.0',
+    licenseUrl: 'https://www.mozilla.org/MPL/2.0/',
+  },
+  {
     id: 'code-gpl-3',
     name: 'GNU GPL v3.0 (Copyleft Generative)',
     category: 'code',
-    rightsTag: 'Copyleft Open Source',
+    rightsTag: 'Strong Copyleft',
     summary: 'Strong copyleft: anyone modifying or creating derivative software from this generative code must make the complete source code public under GPL v3.',
     deedUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
     licenseCode: 'GPL-3.0',
     licenseUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
+  },
+  {
+    id: 'code-unlicense',
+    name: 'The Unlicense (Public Domain Code)',
+    category: 'code',
+    rightsTag: 'Public Domain Software',
+    summary: 'A template for disclaiming copyright interest in software, dedicating code to the public domain with zero restrictions.',
+    deedUrl: 'https://unlicense.org/',
+    licenseCode: 'Unlicense',
+    licenseUrl: 'https://unlicense.org/',
   },
 ];
 
