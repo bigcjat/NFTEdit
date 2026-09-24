@@ -108,8 +108,6 @@ For NFTs that embed on-chain generative scripts (p5.js, Three.js), GLSL shaders,
 | **SIL Open Font License 1.1** | `OFL-1.1` | **Typography & Fonts:** The worldwide standard for digital fonts, glyph sets, and typeface NFTs. | [opensource.org/license/OFL-1.1](https://opensource.org/license/OFL-1.1) |
 | **The Unlicense** | `Unlicense` | **Public Domain Software:** Template dedicating software and code completely to the public domain. | [unlicense.org](https://unlicense.org/) |
 
-> **Automated URL Verification:** All license URLs and contract PDFs in this repository are verified live via an automated audit script (`node scripts/verify-license-urls.mjs`) ensuring 100% HTTP 200 resolution with zero broken links or hallucinations.
-
 ---
 
 ## Optional: Running Locally (For Developers)
